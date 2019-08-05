@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
@@ -54,34 +56,49 @@ func (m *Mapper) Create(model interface{}) error {
 	}
 	fields := m.fieldMap(model)
 	keys := make([]string, 0, len(fields))
-	idfield := ""
+	vals := make([]string, 0, len(fields))
+	hasID := false
+	hasCreatedAt := false
 	for k := range fields {
 		if k == "id" {
-			idfield = k
+			hasID = true
+			continue
+		}
+		if k == "-" || strings.Index(k, ".") >= 0 {
+			continue
+		}
+		keys = append(keys, k)
+		if k == "created_at" {
+			hasCreatedAt = true
+			vals = append(vals, "NOW()")
 		} else {
-			keys = append(keys, k)
+			vals = append(vals, ":"+k)
 		}
 	}
 	if len(keys) < 1 {
 		return errors.New("nothing to create")
 	}
-	result, err := m.Exec(
+	rows, err := m.NamedQuery(
 		fmt.Sprintf(
-			"INSERT INTO %s (%s) VALUES (:%s)",
+			"INSERT INTO %s (%s) VALUES (%s)%s",
 			tablename,
 			strings.Join(keys, ", "),
-			strings.Join(keys, ", :"),
+			strings.Join(vals, ", "),
+			map[bool]string{true: " RETURNING id", false: ""}[hasID],
 		),
 		model,
 	)
 	if err == nil {
-		lastid, err := result.LastInsertId()
-		if err != nil {
-			return errors.Wrap(err, "requesting last insert ID")
+		if hasID {
+			rows.Next()
+			err = rows.StructScan(model)
+			if err != nil {
+				return err
+			}
 		}
-		val := reflect.ValueOf(model)
-		_ = val
-		val.FieldByName(idfield).Set(reflect.ValueOf(lastid))
+		if hasCreatedAt {
+			fields["created_at"].Set(reflect.ValueOf(pq.NullTime{Time: time.Now(), Valid: true}))
+		}
 	}
 	return err
 }
@@ -129,7 +146,7 @@ func (m *Mapper) Delete(model interface{}, id int64) error {
 	}
 	_, err = m.Exec(
 		fmt.Sprintf(
-			"DELETE FROM %s WHERE id = ?",
+			"DELETE FROM %s WHERE id = $1",
 			tablename,
 		),
 		id,

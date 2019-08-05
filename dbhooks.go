@@ -1,6 +1,10 @@
 package dmpr
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/jmoiron/sqlx"
+)
 
 func (m *Mapper) Exec(query string, args ...interface{}) (sql.Result, error) {
 	m.logger.Infof("DB EXEC: %s with %+v", query, args)
@@ -10,6 +14,11 @@ func (m *Mapper) Exec(query string, args ...interface{}) (sql.Result, error) {
 func (m *Mapper) NamedExec(query string, arg interface{}) (sql.Result, error) {
 	m.logger.Infof("DB NAMED EXEC: %s with %+v", query, arg)
 	return m.Conn.NamedExec(query, arg)
+}
+
+func (m *Mapper) NamedQuery(query string, arg interface{}) (*sqlx.Rows, error) {
+	m.logger.Infof("DB NAMED QUERY: %s with %+v", query, arg)
+	return m.Conn.NamedQuery(query, arg)
 }
 
 func (m *Mapper) Get(dest interface{}, query string, args ...interface{}) error {
