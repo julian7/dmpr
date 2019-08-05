@@ -29,8 +29,9 @@ func New(connString string, logger *logrus.Logger) (*Mapper, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn := &Mapper{Conn: db, logger: logger}
-	return conn, nil
+	connURL.User = url.UserPassword("REDACTED", "REDACTED")
+	logger.Infof("dbmapper connected to underlying database: %v", connURL.String())
+	return &Mapper{Conn: db, logger: logger}, nil
 }
 
 func (m *Mapper) Name() string {
