@@ -46,7 +46,7 @@ func TestMapper_fieldsFor(t *testing.T) {
 		},
 		{
 			name:  "empty model for update",
-			model: &ExampleFieldsForModel{},
+			model: &ExampleFieldsForModel{Extra: ""},
 			qt:    updateType,
 			expected: []queryField{
 				{key: "id", val: "id=:id"},

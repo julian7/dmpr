@@ -25,16 +25,14 @@ func (m *Mapper) fieldsFor(model interface{}, qt queryType) ([]queryField, error
 	for _, fi := range fields {
 		val := ":" + fi.Name
 		forcedField := false
-		if _, ok := fi.Options["omitempty"]; ok {
-			if isEmptyValue(fi.Value) {
-				if (fi.Name == "created_at" && qt == insertType) ||
-					(fi.Name == "updated_at" && qt == updateType) {
-					val = "NOW()"
-					forcedField = true
-				}
-				if !forcedField {
-					continue
-				}
+		if _, ok := fi.Options["omitempty"]; ok && isEmptyValue(fi.Value) {
+			if (fi.Name == "created_at" && qt == insertType) ||
+				(fi.Name == "updated_at" && qt == updateType) {
+				val = "NOW()"
+				forcedField = true
+			}
+			if !forcedField {
+				continue
 			}
 		}
 		field := queryField{}
