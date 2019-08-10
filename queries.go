@@ -2,11 +2,8 @@ package dmpr
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
-	"time"
 
-	"github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
@@ -54,29 +51,22 @@ func (m *Mapper) Create(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	fields := m.fieldMap(model)
+	fields, err := m.fieldsFor(model, insertType)
+	if err != nil {
+		return err
+	}
+	if len(fields) < 1 {
+		return errors.New("nothing to create")
+	}
 	keys := make([]string, 0, len(fields))
 	vals := make([]string, 0, len(fields))
 	hasID := false
-	hasCreatedAt := false
-	for k := range fields {
-		if k == "id" {
+	for _, field := range fields {
+		if field.key == "id" {
 			hasID = true
-			continue
 		}
-		if k == "-" || strings.Index(k, ".") >= 0 {
-			continue
-		}
-		keys = append(keys, k)
-		if k == "created_at" {
-			hasCreatedAt = true
-			vals = append(vals, "NOW()")
-		} else {
-			vals = append(vals, ":"+k)
-		}
-	}
-	if len(keys) < 1 {
-		return errors.New("nothing to create")
+		keys = append(keys, field.key)
+		vals = append(vals, field.val)
 	}
 	rows, err := m.NamedQuery(
 		fmt.Sprintf(
@@ -96,9 +86,6 @@ func (m *Mapper) Create(model interface{}) error {
 				return err
 			}
 		}
-		if hasCreatedAt {
-			fields["created_at"].Set(reflect.ValueOf(pq.NullTime{Time: time.Now(), Valid: true}))
-		}
 	}
 	return err
 }
@@ -109,18 +96,20 @@ func (m *Mapper) Update(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	fields := m.fieldMap(model)
-	keys := make([]string, 0, len(fields))
-	idfield := ""
-	for k := range fields {
-		field := fmt.Sprintf("%s=:%s", k, k)
-		if k == "id" {
-			idfield = field
-		} else {
-			keys = append(keys, field)
-		}
+	fields, err := m.fieldsFor(model, updateType)
+	if err != nil {
+		return err
 	}
-	if idfield == "" {
+	keys := make([]string, 0, len(fields))
+	hasID := false
+	for _, field := range fields {
+		if field.key == "id" {
+			hasID = true
+			continue
+		}
+		keys = append(keys, field.val)
+	}
+	if !hasID {
 		return errors.New("no ID field found")
 	}
 	if len(keys) < 1 {
@@ -128,13 +117,13 @@ func (m *Mapper) Update(model interface{}) error {
 	}
 	_, err = m.NamedExec(
 		fmt.Sprintf(
-			"UPDATE %s SET %s WHERE %s",
+			"UPDATE %s SET %s WHERE id=:id",
 			tablename,
 			strings.Join(keys, ", "),
-			idfield,
 		),
 		model,
 	)
+
 	return err
 }
 
