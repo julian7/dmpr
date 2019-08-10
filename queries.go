@@ -15,7 +15,7 @@ func (m *Mapper) Find(model interface{}, id int64) error {
 	}
 	return m.Get(
 		model,
-		fmt.Sprintf("SELECT * FROM %s WHERE id = ?", table),
+		fmt.Sprintf("SELECT * FROM %s WHERE id = $1", table),
 		id,
 	)
 }
