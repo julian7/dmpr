@@ -64,6 +64,7 @@ func (m *Mapper) Create(model interface{}) error {
 	for _, field := range fields {
 		if field.key == "id" {
 			hasID = true
+			continue
 		}
 		keys = append(keys, field.key)
 		vals = append(vals, field.val)
