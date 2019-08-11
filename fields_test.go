@@ -1,7 +1,6 @@
 package dmpr
 
 import (
-	"database/sql"
 	"reflect"
 	"testing"
 	"time"
@@ -9,17 +8,17 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"github.com/julian7/tester"
-	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/guregu/null.v3"
 )
 
 type ExampleFieldsForModel struct {
-	ID        int64          `db:"id"`
-	Name      sql.NullString `db:"name,omitempty"`
-	Extra     string         `db:"extra,omitempty"`
-	CreatedAt pq.NullTime    `db:"created_at,omitempty"`
-	UpdatedAt pq.NullTime    `db:"updated_at,omitempty"`
+	ID        int64       `db:"id"`
+	Name      null.String `db:"name,omitempty"`
+	Extra     string      `db:"extra,omitempty"`
+	CreatedAt null.Time   `db:"created_at,omitempty"`
+	UpdatedAt null.Time   `db:"updated_at,omitempty"`
 }
 
 func TestMapper_fieldsFor(t *testing.T) {
@@ -57,8 +56,8 @@ func TestMapper_fieldsFor(t *testing.T) {
 			name: "filled model for insert",
 			model: &ExampleFieldsForModel{
 				ID:        1,
-				Name:      sql.NullString{String: "Name", Valid: true},
-				CreatedAt: pq.NullTime{Time: time.Now(), Valid: true},
+				Name:      null.StringFrom("Name"),
+				CreatedAt: null.TimeFrom(time.Now()),
 				Extra:     "Extra",
 			},
 			qt: insertType,
@@ -73,8 +72,8 @@ func TestMapper_fieldsFor(t *testing.T) {
 			name: "filled model for update",
 			model: &ExampleFieldsForModel{
 				ID:        1,
-				Name:      sql.NullString{String: "Name", Valid: true},
-				CreatedAt: pq.NullTime{Time: time.Now(), Valid: true},
+				Name:      null.StringFrom("Name"),
+				CreatedAt: null.TimeFrom(time.Now()),
 				Extra:     "Extra",
 			},
 			qt: updateType,
