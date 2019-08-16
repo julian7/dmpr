@@ -3,12 +3,13 @@ package dmpr
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // Operator describes an operator, in which queries can build their WHERE clauses.
 type Operator interface {
-	Where() string
-	Value() []interface{}
+	Where(bool) string
+	Value() map[string]interface{}
 }
 
 // ColumnValue is a standard struct representing a database column and its desierd
@@ -24,8 +25,8 @@ func (c *ColumnValue) Column() string {
 }
 
 // Value returns the object's value
-func (c *ColumnValue) Value() []interface{} {
-	return []interface{}{c.value}
+func (c *ColumnValue) Value() map[string]interface{} {
+	return map[string]interface{}{c.column: c.value}
 }
 
 // EQ implements equivalence Operator. It is based on Column struct.
@@ -39,30 +40,108 @@ func Eq(col string, value interface{}) *EQ {
 	return &EQ{ColumnValue: ColumnValue{column: col, value: value}}
 }
 
-func (op *EQ) Where() string {
-	if op.Value() == nil {
-		return fmt.Sprintf("%s IS NULL", op.Column())
+// Where returns a where clause for the equation. It handles nil, scalar, and slice values.
+func (op *EQ) Where(truthy bool) string {
+	item := op.Value()[op.Column()]
+	if item == nil {
+		return fmt.Sprintf("%s IS%s NULL", op.Column(), map[bool]string{true: "", false: " NOT"}[truthy])
 	}
-	val := reflect.ValueOf(op.Value())
-	tmpl := "%s = :%s"
-	if val.Kind() == reflect.Slice {
-		if val.Len() != 1 {
+	val := reflect.ValueOf(item)
+	switch val.Kind() {
+	case reflect.Invalid:
+		return fmt.Sprintf("%s IS%s NULL", op.Column(), map[bool]string{true: "", false: " NOT"}[truthy])
+	case reflect.Slice:
+		len := val.Len()
+		if len < 1 {
 			return ""
 		}
-		val = val.Index(0)
-		if val.Kind() == reflect.Interface {
-			val = val.Elem()
-		}
-		switch val.Kind() {
-		case reflect.Invalid:
-			return fmt.Sprintf("%s IS NULL", op.Column())
-		case reflect.Slice:
-			len := val.Len()
-			if len < 1 {
-				return ""
-			}
-			tmpl = "%s IN (:%s)"
+		return fmt.Sprintf(
+			"%s %sIN (:%s)",
+			op.Column(),
+			map[bool]string{true: "", false: "NOT "}[truthy],
+			op.Column(),
+		)
+	}
+	return fmt.Sprintf(
+		"%s %s :%s",
+		op.Column(),
+		map[bool]string{true: "=", false: "<>"}[truthy],
+		op.Column(),
+	)
+}
+
+// NOT is a simple negate operator struct
+type NOT struct {
+	Operator
+}
+
+// Not returns a negating version for an already existing operator.
+func Not(op Operator) *NOT {
+	return &NOT{Operator: op}
+}
+
+// Where is calls the original operator with flipping truthy flag
+func (op *NOT) Where(truthy bool) string {
+	return op.Operator.Where(!truthy)
+}
+
+// GroupOperator is an iternal data structure for an operator with multiple sub-operators
+type GroupOperator struct {
+	items []Operator
+}
+
+// NewGroupOp returns a new group of operators
+func NewGroupOp(items ...Operator) GroupOperator {
+	return GroupOperator{items: items}
+}
+
+// Add adds more operatorn to an existing GroupOperator
+func (op *GroupOperator) Add(ops ...Operator) {
+	op.items = append(op.items, ops...)
+}
+
+// Value returns all the values found in its sub-operators
+func (op *GroupOperator) Value() map[string]interface{} {
+	values := map[string]interface{}{}
+	for _, item := range op.items {
+		for key, val := range item.Value() {
+			values[key] = val
 		}
 	}
-	return fmt.Sprintf(tmpl, op.Column(), op.Column())
+	return values
+}
+
+// AND is an operator struct, with AND relation between each item
+type AND struct {
+	GroupOperator
+}
+
+// And returns a new AND operator with initial values
+func And(ops ...Operator) *AND {
+	op := &AND{GroupOperator: NewGroupOp([]Operator{}...)}
+	return op.And(ops...)
+}
+
+// And adds more items into the AND operator
+func (op *AND) And(ops ...Operator) *AND {
+	for _, item := range ops {
+		if andop, ok := item.(*AND); ok {
+			op.GroupOperator.Add(andop.items...)
+		} else {
+			op.GroupOperator.Add(item)
+		}
+	}
+	return op
+}
+
+// Where returns the where clause of all sub-operators stringed together into an AND clause
+func (op *AND) Where(truthy bool) string {
+	if len(op.items) == 1 {
+		return op.items[0].Where(truthy)
+	}
+	whereClauses := make([]string, 0, len(op.items))
+	for _, item := range op.items {
+		whereClauses = append(whereClauses, item.Where(true))
+	}
+	return map[bool]string{true: "", false: "NOT "}[truthy] + "(" + strings.Join(whereClauses, " AND ") + ")"
 }
