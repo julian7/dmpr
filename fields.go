@@ -31,6 +31,10 @@ func TypeOf(model interface{}) reflect.Type {
 	return t
 }
 
+func (mapper *Mapper) FieldMap(model interface{}) map[string]reflect.Value {
+	return mapper.Conn.Mapper.FieldMap(indirect(reflect.ValueOf(model)))
+}
+
 func (mapper *Mapper) TypeMap(t reflect.Type) *StructMap {
 	return &StructMap{Type: t, StructMap: mapper.Conn.Mapper.TypeMap(t)}
 }

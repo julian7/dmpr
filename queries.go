@@ -60,11 +60,22 @@ func (m *Mapper) Create(model interface{}) error {
 	}
 	keys := make([]string, 0, len(fields))
 	vals := make([]string, 0, len(fields))
+	fieldmap := m.FieldMap(model)
 	hasID := false
 	for _, field := range fields {
+		fieldVal, ok := fieldmap[field.key]
+		if !ok {
+			return errors.Errorf("unknown field key: %s", field.key)
+		}
 		if field.key == "id" {
 			hasID = true
 			continue
+		}
+		if _, ok := field.opts["omitempty"]; ok && isEmptyValue(fieldVal) {
+			if field.key != "created_at" {
+				continue
+			}
+			field.val = "NOW()"
 		}
 		keys = append(keys, field.key)
 		vals = append(vals, field.val)
