@@ -113,11 +113,24 @@ func (m *Mapper) Update(model interface{}) error {
 		return err
 	}
 	keys := make([]string, 0, len(fields))
+	fieldmap := m.FieldMap(model)
 	hasID := false
+	hasUpdatedAt := true
 	for _, field := range fields {
+		fieldVal, ok := fieldmap[field.key]
+		if !ok {
+			return errors.Errorf("unknown field key: %s", field.key)
+		}
 		if field.key == "id" {
 			hasID = true
 			continue
+		}
+		if _, ok := field.opts["omitempty"]; ok && isEmptyValue(fieldVal) {
+			if field.key != "updated_at" {
+				continue
+			}
+			hasUpdatedAt = true
+			field.eq = "updated_at=NOW()"
 		}
 		keys = append(keys, field.eq)
 	}
@@ -127,15 +140,19 @@ func (m *Mapper) Update(model interface{}) error {
 	if len(keys) < 1 {
 		return errors.New("nothing to create")
 	}
-	_, err = m.NamedExec(
+	rows, err := m.NamedQuery(
 		fmt.Sprintf(
-			"UPDATE %s SET %s WHERE id=:id",
+			"UPDATE %s SET %s WHERE id=:id%s",
 			tablename,
 			strings.Join(keys, ", "),
+			map[bool]string{true: " RETURNING updated_at", false: ""}[hasUpdatedAt],
 		),
 		model,
 	)
-
+	if err == nil && hasUpdatedAt {
+		rows.Next()
+		err = rows.StructScan(model)
+	}
 	return err
 }
 
