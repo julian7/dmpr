@@ -32,6 +32,10 @@ func tableName(model interface{}) (string, error) {
 	if t == nil {
 		return "", ErrInvalidType
 	}
+	return valueName(t)
+}
+
+func valueName(t reflect.Type) (string, error) {
 	modelName := strings.ToLower(t.Name())
 	if modelName == "" {
 		return "", ErrInvalidType
@@ -39,13 +43,37 @@ func tableName(model interface{}) (string, error) {
 	return flect.Pluralize(modelName), nil
 }
 
+func (mapper *Mapper) subTableName(model interface{}, fieldName string) (string, error) {
+	for _, field := range mapper.FieldList(model) {
+		if field.Name == fieldName {
+			return valueName(field.Value.Type())
+		}
+	}
+	return "", errors.New("field not found")
+}
+
 func (mapper *Mapper) FieldList(model interface{}) []FieldListItem {
+	related := []string{}
 	v := reflect.Indirect(reflect.ValueOf(model))
 	tm := mapper.Conn.Mapper.TypeMap(v.Type())
 	fields := make([]FieldListItem, 0, len(tm.Names))
 	for _, fi := range tm.Index {
-		if strings.Index(fi.Path, ".") > 0 || len(fi.Index) < 1 {
-			continue
+		dot := strings.LastIndex(fi.Path, ".")
+		if dot > 0 {
+			found := false
+			for _, rel := range related {
+				if dot == len(rel) && strings.HasPrefix(fi.Path, rel) {
+					found = true
+					fi.Options["_related_to_"] = rel
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		if _, ok := fi.Options["belongs"]; ok {
+			related = append(related, fi.Path)
 		}
 		fields = append(fields, FieldListItem{
 			Name:    fi.Path,
