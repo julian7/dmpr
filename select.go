@@ -16,11 +16,15 @@ type SelectQuery struct {
 	where  Operator
 }
 
-func (m *Mapper) NewSelect(model interface{}) *SelectQuery {
+func (m *Mapper) NewSelect(model interface{}) (*SelectQuery, error) {
+	_, err := tableName(model)
+	if err != nil {
+		return nil, err
+	}
 	return &SelectQuery{
 		mapper: m,
 		model:  model,
-	}
+	}, nil
 }
 
 func (q *SelectQuery) Select(selectors ...string) *SelectQuery {

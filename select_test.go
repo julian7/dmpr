@@ -7,6 +7,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"github.com/julian7/tester"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/guregu/null.v3"
 )
@@ -33,6 +34,16 @@ func TestSelectQuery_allSelector(t *testing.T) {
 		maps  []interface{}
 		err   error
 	}{
+		{
+			name:  "nil model",
+			model: nil,
+			err:   errors.New("Invalid Model Type"),
+		},
+		{
+			name:  "unexported model",
+			model: struct{}{},
+			err:   errors.New("Invalid Model Type"),
+		},
 		{
 			name:  "get all fields",
 			model: &AllSelectorExample{},
@@ -77,7 +88,14 @@ func TestSelectQuery_allSelector(t *testing.T) {
 				Conn:   sqlx.NewDb(db, "sqlmock"), // "sqlmock" is a magic string @ sqlmock for driver name
 				logger: logrus.New(),
 			}
-			q := mapper.NewSelect(tt.model)
+			q, err := mapper.NewSelect(tt.model)
+			if assert := tester.AssertError(tt.err, err); assert != nil {
+				t.Error(assert)
+			}
+			if err != nil {
+				return
+			}
+
 			for _, prepfunc := range tt.prep {
 				prepfunc(q)
 			}
