@@ -42,7 +42,7 @@ func TestMapper_Find(t *testing.T) {
 				func(mock sqlmock.Sqlmock) {
 					rows := sqlmock.NewRows([]string{"id", "name"}).
 						AddRow(5, "test")
-					mock.ExpectQuery("^SELECT \\* FROM examplemodels WHERE id = \\$1").WillReturnRows(rows)
+					mock.ExpectQuery("^SELECT \\* FROM example_models WHERE id = \\$1").WillReturnRows(rows)
 				},
 			},
 			model:    &ExampleModel{},

@@ -1,10 +1,12 @@
 package dmpr
 
 import (
+	"reflect"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/jmoiron/sqlx/reflectx"
 )
+
 
 const OptRelatedTo = "_related_to_"
 
@@ -21,11 +23,56 @@ const (
 	updateType = 2
 )
 
-func (m *Mapper) fieldsFor(model interface{}, qt queryType) ([]queryField, error) {
-	if model == nil {
-		return nil, errors.New("empty model")
+type StructMap struct {
+	*reflectx.StructMap
+	Type reflect.Type
+}
+
+func TypeOf(model interface{}) reflect.Type {
+	t := indirect(reflect.ValueOf(model)).Type()
+	if t.Kind() == reflect.Slice {
+		return t.Elem()
 	}
-	fields := m.FieldList(model)
+
+	return t
+}
+
+func (mapper *Mapper) TypeMap(t reflect.Type) *StructMap {
+	return &StructMap{Type: t, StructMap: mapper.Conn.Mapper.TypeMap(t)}
+}
+
+func FieldList(tm *StructMap) []FieldListItem {
+	related := []string{}
+	fields := make([]FieldListItem, 0, len(tm.Names))
+	for _, fi := range tm.Index {
+		if fi.Parent.Field.Type != nil {
+			found := false
+			for _, rel := range related {
+				if fi.Parent.Path == rel {
+					found = true
+					fi.Options[OptRelatedTo] = rel
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		if _, ok := fi.Options["belongs"]; ok {
+			related = append(related, fi.Path)
+		}
+		fieldStruct := tm.Type.FieldByIndex(fi.Index)
+		fields = append(fields, FieldListItem{
+			Name:    fi.Path,
+			Options: fi.Options,
+			Field:   &fieldStruct,
+			Type:    fieldStruct.Type,
+		})
+	}
+	return fields
+}
+
+func FieldsFor(fields []FieldListItem, qt queryType) ([]queryField, error) {
 	queryFields := make([]queryField, 0, len(fields))
 
 	for _, fi := range fields {
@@ -40,11 +87,7 @@ func (m *Mapper) fieldsFor(model interface{}, qt queryType) ([]queryField, error
 	return queryFields, nil
 }
 
-func (m *Mapper) relatedFieldsFor(model interface{}, relation string, qt queryType) ([]queryField, error) {
-	if model == nil {
-		return nil, errors.New("empty model")
-	}
-	fields := m.FieldList(model)
+func RelatedFieldsFor(fields []FieldListItem, relation string, qt queryType) ([]queryField, error) {
 	subfields := []FieldListItem{}
 	for _, field := range fields {
 		if subfield, ok := field.Options[OptRelatedTo]; ok && relation == subfield {

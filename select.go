@@ -93,7 +93,8 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 	if len(q.sel) >= 1 {
 		return q.sel, joined, nil
 	}
-	fields, err := q.mapper.fieldsFor(q.model, selectType)
+	fl := FieldList(q.mapper.TypeMap(TypeOf(q.model)))
+	fields, err := FieldsFor(fl, selectType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,11 +104,11 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 
 	if len(q.incl) > 0 {
 		for idx, incl := range q.incl {
-			fields, err := q.mapper.relatedFieldsFor(q.model, incl, selectType)
+			fields, err := RelatedFieldsFor(fl, incl, selectType)
 			if err != nil {
 				return nil, joined, err
 			}
-			joinTable, err := q.mapper.subTableName(q.model, incl)
+			joinTable, err := SubTableName(fl, incl)
 			if err != nil {
 				return nil, joined, err
 			}

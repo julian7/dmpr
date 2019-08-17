@@ -36,7 +36,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 		{
 			name:  "get all fields",
 			model: &AllSelectorExample{},
-			want:  "SELECT t1.id, t1.name, t1.extras, t1.sub_id FROM allselectorexamples t1",
+			want:  "SELECT t1.id, t1.name, t1.extras, t1.sub_id FROM all_selector_examples t1",
 		},
 		{
 			name:  "get selected fields",
@@ -44,7 +44,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 			prep: []func(*SelectQuery){
 				func(s *SelectQuery) { s.Select("id", "extras") },
 			},
-			want: "SELECT id, extras FROM allselectorexamples t1",
+			want: "SELECT id, extras FROM all_selector_examples t1",
 		},
 		{
 			name:  "filter query",
@@ -54,7 +54,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 				func(s *SelectQuery) { s.Where(Eq("extras", nil)) },
 			},
 			maps: []interface{}{3, nil},
-			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id FROM allselectorexamples t1 WHERE id = :id AND extras IS NULL",
+			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id FROM all_selector_examples t1 WHERE id = :id AND extras IS NULL",
 		},
 		{
 			name:  "belongs to",
@@ -63,7 +63,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 				func(s *SelectQuery) { s.Include("sub") },
 			},
 			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id, t2.name AS sub_name " +
-				"FROM allselectorexamples t1 LEFT JOIN allselectorsubexamples t2 ON (t1.sub_id=t2.id)",
+				"FROM all_selector_examples t1 LEFT JOIN all_selector_sub_examples t2 ON (t1.sub_id=t2.id)",
 		},
 	}
 	for _, tt := range tests {
