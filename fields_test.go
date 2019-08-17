@@ -1,11 +1,13 @@
 package dmpr
 
 import (
+	"reflect"
 	"testing"
-	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/pkg/errors"
+	"github.com/jmoiron/sqlx"
+	"github.com/julian7/tester"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/guregu/null.v3"
 )
 
@@ -17,68 +19,23 @@ type ExampleFieldsForModel struct {
 	UpdatedAt null.Time   `db:"updated_at,omitempty"`
 }
 
-func TestMapper_fieldsFor(t *testing.T) {
+func Test_FieldsFor(t *testing.T) {
+	omitempty := map[string]string{"omitempty": ""}
 	tests := []struct {
 		name     string
-		mocks    []func(sqlmock.Sqlmock)
 		model    interface{}
-		qt       queryType
 		expected []queryField
 		err      error
 	}{
 		{
-			name: "nil model",
-			err:  errors.New("empty model"),
-		},
-		{
-			name:  "empty model for insert",
+			name:  "empty model",
 			model: &ExampleFieldsForModel{},
-			qt:    insertType,
 			expected: []queryField{
-				{key: "id", val: ":id"},
-				{key: "created_at", val: "NOW()"},
-			},
-		},
-		{
-			name:  "empty model for update",
-			model: &ExampleFieldsForModel{Extra: ""},
-			qt:    updateType,
-			expected: []queryField{
-				{key: "id", val: "id=:id"},
-				{key: "updated_at", val: "updated_at=NOW()"},
-			},
-		},
-		{
-			name: "filled model for insert",
-			model: &ExampleFieldsForModel{
-				ID:        1,
-				Name:      null.StringFrom("Name"),
-				CreatedAt: null.TimeFrom(time.Now()),
-				Extra:     "Extra",
-			},
-			qt: insertType,
-			expected: []queryField{
-				{key: "id", val: ":id"},
-				{key: "name", val: ":name"},
-				{key: "extra", val: ":extra"},
-				{key: "created_at", val: ":created_at"},
-			},
-		},
-		{
-			name: "filled model for update",
-			model: &ExampleFieldsForModel{
-				ID:        1,
-				Name:      null.StringFrom("Name"),
-				CreatedAt: null.TimeFrom(time.Now()),
-				Extra:     "Extra",
-			},
-			qt: updateType,
-			expected: []queryField{
-				{key: "id", val: "id=:id"},
-				{key: "name", val: "name=:name"},
-				{key: "extra", val: "extra=:extra"},
-				{key: "created_at", val: "created_at=:created_at"},
-				{key: "updated_at", val: "updated_at=NOW()"},
+				{key: "id", val: ":id", eq: "id=:id"},
+				{key: "name", val: ":name", eq: "name=:name", opts: omitempty},
+				{key: "extra", val: ":extra", eq: "extra=:extra", opts: omitempty},
+				{key: "created_at", val: ":created_at", eq: "created_at=:created_at", opts: omitempty},
+				{key: "updated_at", val: ":updated_at", eq: "updated_at=:updated_at", opts: omitempty},
 			},
 		},
 	}
@@ -89,27 +46,30 @@ func TestMapper_fieldsFor(t *testing.T) {
 				t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 			}
 			defer db.Close()
-			for _, item := range tt.mocks {
-				item(mock)
+			m := &Mapper{
+				Conn:   sqlx.NewDb(db, "sqlmock"), // "sqlmock" is a magic string @ sqlmock for driver name
+				logger: logrus.New(),
 			}
-			// m := &Mapper{
-			// 	Conn:   sqlx.NewDb(db, "sqlmock"), // "sqlmock" is a magic string @ sqlmock for driver name
-			// 	logger: logrus.New(),
-			// }
-			// got, err := m.fieldsFor(tt.model, tt.qt)
-			// if assert := tester.AssertError(tt.err, err); assert != nil {
-			// 	t.Error(assert)
-			// }
-			// if err != nil {
-			// 	return
-			// }
-			// if err := mock.ExpectationsWereMet(); err != nil {
-			// 	t.Error(err)
-			// }
+			got, err := FieldsFor(FieldList(m.TypeMap(TypeOf(tt.model))))
+			if assert := tester.AssertError(tt.err, err); assert != nil {
+				t.Error(assert)
+			}
+			if err != nil {
+				return
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Error(err)
+			}
 
-			// if !reflect.DeepEqual(got, tt.expected) {
-			// 	t.Errorf("Mapper.fieldsFor() = %v, want %v", got, tt.expected)
-			// }
+			for idx := range tt.expected {
+				if len(tt.expected[idx].opts) == 0 {
+					tt.expected[idx].opts = map[string]string{}
+				}
+			}
+
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("FieldsFor() = %v, want %v", got, tt.expected)
+			}
 		})
 	}
 }

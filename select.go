@@ -132,7 +132,7 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 	}
 	structmap := q.mapper.TypeMap(TypeOf(q.model))
 	fieldlist := FieldList(structmap)
-	fields, err := FieldsFor(fieldlist, selectType)
+	fields, err := FieldsFor(fieldlist)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,7 +142,7 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 
 	if len(q.incl) > 0 {
 		for idx, incl := range q.incl {
-			fields, err := RelatedFieldsFor(fieldlist, incl, selectType)
+			fields, err := RelatedFieldsFor(fieldlist, incl)
 			if err != nil {
 				return nil, joined, err
 			}

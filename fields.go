@@ -10,18 +10,12 @@ import (
 
 const OptRelatedTo = "_related_to_"
 
-type queryType = int
 type queryField struct {
 	key  string
 	val  string
+	eq   string
 	opts map[string]string
 }
-
-const (
-	selectType = 0
-	insertType = 1
-	updateType = 2
-)
 
 type StructMap struct {
 	*reflectx.StructMap
@@ -72,14 +66,14 @@ func FieldList(tm *StructMap) []FieldListItem {
 	return fields
 }
 
-func FieldsFor(fields []FieldListItem, qt queryType) ([]queryField, error) {
+func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 	queryFields := make([]queryField, 0, len(fields))
 
 	for _, fi := range fields {
 		if _, ok := fi.Options[OptRelatedTo]; ok {
 			continue
 		}
-		field := computeField(fi, qt)
+		field := computeField(fi)
 		if field != nil {
 			queryFields = append(queryFields, *field)
 		}
@@ -87,7 +81,7 @@ func FieldsFor(fields []FieldListItem, qt queryType) ([]queryField, error) {
 	return queryFields, nil
 }
 
-func RelatedFieldsFor(fields []FieldListItem, relation string, qt queryType) ([]queryField, error) {
+func RelatedFieldsFor(fields []FieldListItem, relation string) ([]queryField, error) {
 	subfields := []FieldListItem{}
 	for _, field := range fields {
 		if subfield, ok := field.Options[OptRelatedTo]; ok && relation == subfield {
@@ -103,7 +97,7 @@ func RelatedFieldsFor(fields []FieldListItem, relation string, qt queryType) ([]
 		}
 		fi.Name = strings.TrimPrefix(fi.Name, rel)
 
-		field := computeField(fi, qt)
+		field := computeField(fi)
 		if field != nil {
 			queryFields = append(queryFields, *field)
 		}
@@ -164,7 +158,7 @@ func fieldsByTraversal(v reflect.Value, traversals []traversal, values []interfa
 	return nil
 }
 
-func computeField(fi FieldListItem, qt int) *queryField {
+func computeField(fi FieldListItem) *queryField {
 	val := ":" + fi.Name
 	for _, opt := range []string{"relation", "belongs"} {
 		_, ok := fi.Options[opt]
@@ -175,11 +169,7 @@ func computeField(fi FieldListItem, qt int) *queryField {
 	field := &queryField{}
 	field.key = fi.Name
 	field.opts = fi.Options
-	switch qt {
-	case selectType, insertType:
-		field.val = val
-	case updateType:
-		field.val = fi.Name + "=" + val
-	}
+	field.val = val
+	field.eq = fi.Name + "=" + val
 	return field
 }

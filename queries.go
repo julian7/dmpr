@@ -51,7 +51,7 @@ func (m *Mapper) Create(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	fields, err := FieldsFor(FieldList(m.TypeMap(TypeOf(model))), insertType)
+	fields, err := FieldsFor(FieldList(m.TypeMap(TypeOf(model))))
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (m *Mapper) Update(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	fields, err := FieldsFor(FieldList(m.TypeMap(TypeOf(model))), updateType)
+	fields, err := FieldsFor(FieldList(m.TypeMap(TypeOf(model))))
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (m *Mapper) Update(model interface{}) error {
 			hasID = true
 			continue
 		}
-		keys = append(keys, field.val)
+		keys = append(keys, field.eq)
 	}
 	if !hasID {
 		return errors.New("no ID field found")
