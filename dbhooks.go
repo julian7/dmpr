@@ -30,3 +30,8 @@ func (m *Mapper) Select(dest interface{}, query string, args ...interface{}) err
 	m.logger.Infof("DB SELECT: %s with %+v", query, args)
 	return m.Conn.Select(dest, query, args...)
 }
+
+func (m *Mapper) Queryx(query string, args ...interface{}) (*sqlx.Rows, error) {
+	m.logger.Infof("DB QUERYX: %s with %+v", query, args)
+	return m.Conn.Queryx(query, args...)
+}

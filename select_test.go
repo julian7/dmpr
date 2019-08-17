@@ -62,7 +62,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 			prep: []func(*SelectQuery){
 				func(s *SelectQuery) { s.Include("sub") },
 			},
-			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id, t2.name AS sub_name " +
+			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id, t2.id AS sub_id, t2.name AS sub_name " +
 				"FROM all_selector_examples t1 LEFT JOIN all_selector_sub_examples t2 ON (t1.sub_id=t2.id)",
 		},
 	}
@@ -91,6 +91,9 @@ func TestSelectQuery_allSelector(t *testing.T) {
 
 			if got != tt.want {
 				t.Errorf("SelectQuery.allSelector() = %v, want %v", got, tt.want)
+			}
+			if tt.maps == nil {
+				tt.maps = []interface{}{}
 			}
 			if !reflect.DeepEqual(maps, tt.maps) {
 				t.Errorf("SelectQuery.allSelector() maps = %v, want %v", maps, tt.maps)

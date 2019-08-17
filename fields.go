@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx/reflectx"
+	"github.com/pkg/errors"
 )
-
 
 const OptRelatedTo = "_related_to_"
 
@@ -110,6 +110,58 @@ func RelatedFieldsFor(fields []FieldListItem, relation string, qt queryType) ([]
 	}
 	return queryFields, nil
 
+}
+
+type traversal struct {
+	name     string
+	index    []int
+	relation reflect.StructField
+}
+
+func TraversalsByName(tm *StructMap, columns []string) []traversal {
+	fields := make([]traversal, 0, len(columns))
+	for name, ti := range tm.Names {
+		underscored := strings.ReplaceAll(name, ".", "_")
+		if _, ok := tm.Names[underscored]; !ok {
+			tm.Names[underscored] = ti
+		}
+	}
+	for _, name := range columns {
+		trav := traversal{name: name, index: []int{}}
+		fi, ok := tm.Names[name]
+		if ok {
+			trav.index = fi.Index
+			if relation, ok := fi.Options[OptRelatedTo]; ok {
+				if oi, ok := tm.Names[relation]; ok {
+					trav.relation = oi.Field
+				}
+			}
+		}
+		fields = append(fields, trav)
+	}
+	return fields
+}
+
+// TMP:rewrite
+func fieldsByTraversal(v reflect.Value, traversals []traversal, values []interface{}, ptrs bool) error {
+	v = reflect.Indirect(v)
+	if v.Kind() != reflect.Struct {
+		return errors.New("argument not a struct")
+	}
+
+	for i, traversal := range traversals {
+		if len(traversal.index) == 0 {
+			values[i] = new(interface{})
+			continue
+		}
+		f := fieldByIndexes(v, traversal.index)
+		if ptrs {
+			values[i] = f.Addr().Interface()
+		} else {
+			values[i] = f.Interface()
+		}
+	}
+	return nil
 }
 
 func computeField(fi FieldListItem, qt int) *queryField {

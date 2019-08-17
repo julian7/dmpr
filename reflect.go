@@ -2,7 +2,6 @@ package dmpr
 
 import (
 	"reflect"
-	"strings"
 
 	"github.com/gobuffalo/flect"
 	"github.com/pkg/errors"
@@ -20,6 +19,13 @@ func indirect(v reflect.Value) reflect.Value {
 			return v
 		}
 	}
+}
+
+func deref(t reflect.Type) reflect.Type {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t
 }
 
 func tableName(model interface{}) (string, error) {
@@ -58,44 +64,24 @@ func SubTableName(fields []FieldListItem, fieldName string) (string, error) {
 	return "", errors.New("field not found")
 }
 
-func (mapper *Mapper) FieldList(model interface{}) []FieldListItem {
-	related := []string{}
-	t := typeOf(indirect(reflect.ValueOf(model)))
-	tm := mapper.Conn.Mapper.TypeMap(t)
-	fields := make([]FieldListItem, 0, len(tm.Names))
-	for _, fi := range tm.Index {
-		dot := strings.LastIndex(fi.Path, ".")
-		if dot > 0 {
-			found := false
-			for _, rel := range related {
-				if dot == len(rel) && strings.HasPrefix(fi.Path, rel) {
-					found = true
-					fi.Options["_related_to_"] = rel
-					break
-				}
-			}
-			if !found {
-				continue
-			}
+func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
+	for _, i := range indexes {
+		v = reflect.Indirect(v).Field(i)
+		if v.Kind() == reflect.Ptr && v.IsNil() {
+			alloc := reflect.New(deref(v.Type()))
+			v.Set(alloc)
 		}
-		if _, ok := fi.Options["belongs"]; ok {
-			related = append(related, fi.Path)
+		if v.Kind() == reflect.Map && v.IsNil() {
+			v.Set(reflect.MakeMap(v.Type()))
 		}
-		fieldStruct := t.FieldByIndex(fi.Index)
-		fields = append(fields, FieldListItem{
-			Name:    fi.Path,
-			Options: fi.Options,
-			Field:   &fieldStruct,
-			Type:    fieldStruct.Type,
-		})
 	}
-	return fields
+	return v
 }
 
-func typeOf(v reflect.Value) reflect.Type {
-	t := v.Type()
-	if t.Kind() == reflect.Slice {
-		return t.Elem()
-	}
-	return t
-}
+// func typeOf(v reflect.Value) reflect.Type {
+// 	t := v.Type()
+// 	if t.Kind() == reflect.Slice {
+// 		return t.Elem()
+// 	}
+// 	return t
+// }
