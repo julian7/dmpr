@@ -10,8 +10,9 @@ const OptRelatedTo = "_related_to_"
 
 type queryType = int
 type queryField struct {
-	key string
-	val string
+	key  string
+	val  string
+	opts map[string]string
 }
 
 const (
@@ -76,18 +77,9 @@ func computeField(fi FieldListItem, qt int) *queryField {
 			return nil
 		}
 	}
-	if qt != selectType {
-		if _, ok := fi.Options["omitempty"]; ok && isEmptyValue(fi.Value) {
-			if (fi.Name == "created_at" && qt == insertType) ||
-				(fi.Name == "updated_at" && qt == updateType) {
-				val = "NOW()"
-			} else {
-				return nil
-			}
-		}
-	}
 	field := &queryField{}
 	field.key = fi.Name
+	field.opts = fi.Options
 	switch qt {
 	case selectType, insertType:
 		field.val = val

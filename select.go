@@ -50,11 +50,11 @@ func (q *SelectQuery) All() error {
 	if err != nil {
 		return nil
 	}
-	return q.mapper.Select(q.model, query, args)
+	return q.mapper.Select(q.model, query, args...)
 }
 
-func (q *SelectQuery) allSelector() (string, map[string]interface{}, error) {
-	var args map[string]interface{}
+func (q *SelectQuery) allSelector() (string, []interface{}, error) {
+	var args []interface{}
 	table, err := tableName(q.model)
 	if err != nil {
 		return "", args, err
@@ -63,11 +63,21 @@ func (q *SelectQuery) allSelector() (string, map[string]interface{}, error) {
 	if err != nil {
 		return "", args, err
 	}
+	mappings := map[string]int{}
+	for idx, selection := range selected {
+		if i := strings.Index(selection, "."); i > 0 {
+			selection = selection[i:]
+		}
+		mappings[selection] = idx
+	}
 	joined = append([]string{table + " t1"}, joined...)
 	whereClause := ""
 	if q.where != nil {
 		whereClause = fmt.Sprintf(" WHERE %s", q.where.Where(true))
-		args = q.where.Value()
+		values := q.where.Values()
+		for _, val := range q.where.Keys() {
+			args = append(args, values[val])
+		}
 	}
 	return fmt.Sprintf("SELECT %s "+
 		"FROM %s%s",

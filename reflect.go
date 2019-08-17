@@ -1,7 +1,6 @@
 package dmpr
 
 import (
-	"database/sql/driver"
 	"reflect"
 	"strings"
 
@@ -46,16 +45,35 @@ func valueName(t reflect.Type) (string, error) {
 func (mapper *Mapper) subTableName(model interface{}, fieldName string) (string, error) {
 	for _, field := range mapper.FieldList(model) {
 		if field.Name == fieldName {
-			return valueName(field.Value.Type())
+			return valueName(field.Type)
 		}
 	}
 	return "", errors.New("field not found")
 }
 
+func typeOf(v reflect.Value) reflect.Type {
+	t := v.Type()
+	if t.Kind() == reflect.Slice {
+		return t.Elem()
+	}
+	return t
+}
+
+func indirect(v reflect.Value) reflect.Value {
+	for {
+		switch v.Kind() {
+		case reflect.Ptr, reflect.Interface:
+			v = v.Elem()
+		default:
+			return v
+		}
+	}
+}
+
 func (mapper *Mapper) FieldList(model interface{}) []FieldListItem {
 	related := []string{}
-	v := reflect.Indirect(reflect.ValueOf(model))
-	tm := mapper.Conn.Mapper.TypeMap(v.Type())
+	t := typeOf(indirect(reflect.ValueOf(model)))
+	tm := mapper.Conn.Mapper.TypeMap(t)
 	fields := make([]FieldListItem, 0, len(tm.Names))
 	for _, fi := range tm.Index {
 		dot := strings.LastIndex(fi.Path, ".")
@@ -75,37 +93,13 @@ func (mapper *Mapper) FieldList(model interface{}) []FieldListItem {
 		if _, ok := fi.Options["belongs"]; ok {
 			related = append(related, fi.Path)
 		}
+		fieldStruct := t.FieldByIndex(fi.Index)
 		fields = append(fields, FieldListItem{
 			Name:    fi.Path,
 			Options: fi.Options,
-			Value:   v.Field(fi.Index[0]),
+			Field:   &fieldStruct,
+			Type:    fieldStruct.Type,
 		})
 	}
 	return fields
-}
-
-// copied from stdlib's encoding/json/encode.go, added driver.Valuer handling
-func isEmptyValue(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
-		return v.Len() == 0
-	case reflect.Bool:
-		return !v.Bool()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return v.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
-	case reflect.Interface, reflect.Ptr:
-		return v.IsNil()
-	case reflect.Struct:
-		optional, ok := v.Interface().(driver.Valuer)
-		if ok {
-			v, _ := optional.Value()
-			return v == nil
-		}
-		return false
-	}
-	return false
 }
