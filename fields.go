@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const OptRelatedTo = "_related_to_"
+
 type queryType = int
 type queryField struct {
 	key string
@@ -26,7 +28,7 @@ func (m *Mapper) fieldsFor(model interface{}, qt queryType) ([]queryField, error
 	queryFields := make([]queryField, 0, len(fields))
 
 	for _, fi := range fields {
-		if _, ok := fi.Options["_related_to_"]; ok {
+		if _, ok := fi.Options[OptRelatedTo]; ok {
 			continue
 		}
 		field := computeField(fi, qt)
@@ -44,7 +46,7 @@ func (m *Mapper) relatedFieldsFor(model interface{}, relation string, qt queryTy
 	fields := m.FieldList(model)
 	subfields := []FieldListItem{}
 	for _, field := range fields {
-		if subfield, ok := field.Options["_related_to_"]; ok && relation == subfield {
+		if subfield, ok := field.Options[OptRelatedTo]; ok && relation == subfield {
 			subfields = append(subfields, field)
 		}
 	}
