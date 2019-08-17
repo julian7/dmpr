@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-func TestColumnValue_Value(t *testing.T) {
+func TestColumnValue_Values(t *testing.T) {
 	want := map[string]interface{}{"one": interface{}("two")}
 	c := &ColumnValue{column: "one", value: "two"}
-	if got := c.Value(); !reflect.DeepEqual(got, want) {
+	if got := c.Values(); !reflect.DeepEqual(got, want) {
 		t.Errorf("ColumnValue.Value() = %v, want %v", got, want)
 	}
 }
@@ -112,7 +112,7 @@ func TestGroupOperator_Value(t *testing.T) {
 			op := &GroupOperator{
 				items: tt.items,
 			}
-			if got := op.Value(); !reflect.DeepEqual(got, tt.want) {
+			if got := op.Values(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GroupOperator.Value() = %v, want %v", got, tt.want)
 			}
 		})

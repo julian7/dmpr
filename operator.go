@@ -9,7 +9,8 @@ import (
 // Operator describes an operator, in which queries can build their WHERE clauses.
 type Operator interface {
 	Where(bool) string
-	Value() map[string]interface{}
+	Keys() []string
+	Values() map[string]interface{}
 }
 
 // ColumnValue is a standard struct representing a database column and its desierd
@@ -24,9 +25,31 @@ func (c *ColumnValue) Column() string {
 	return c.column
 }
 
+// Keys returns keys the object returns, in order
+func (c *ColumnValue) Keys() []string {
+	return []string{c.column}
+}
+
 // Value returns the object's value
-func (c *ColumnValue) Value() map[string]interface{} {
+func (c *ColumnValue) Values() map[string]interface{} {
 	return map[string]interface{}{c.column: c.value}
+}
+
+// NULL implements IS NULL operator. It is based on Column struct.
+type NULL struct {
+	ColumnValue
+}
+
+func Null(col string, value bool) *NULL {
+	return &NULL{ColumnValue: ColumnValue{column: col, value: value}}
+}
+
+func (op *NULL) Values() map[string]interface{} {
+	return map[string]interface{}{op.column: nil}
+}
+
+func (op *NULL) Where(truthy bool) string {
+	return op.column + " " + map[bool]string{true: "IS NULL", false: "IS NOT NULL"}[op.value == truthy]
 }
 
 // EQ implements equivalence Operator. It is based on Column struct.
@@ -36,21 +59,20 @@ type EQ struct {
 
 // Eq returns an equivalence operator, requesting a certain column should have
 // a certain value. It handles arrays too.
-func Eq(col string, value interface{}) *EQ {
+func Eq(col string, value interface{}) Operator {
+	if value == nil {
+		return Null(col, true)
+	}
+	if reflect.ValueOf(value).Kind() == reflect.Invalid {
+		return Null(col, true)
+	}
 	return &EQ{ColumnValue: ColumnValue{column: col, value: value}}
 }
 
 // Where returns a where clause for the equation. It handles nil, scalar, and slice values.
 func (op *EQ) Where(truthy bool) string {
-	item := op.Value()[op.Column()]
-	if item == nil {
-		return fmt.Sprintf("%s IS%s NULL", op.Column(), map[bool]string{true: "", false: " NOT"}[truthy])
-	}
-	val := reflect.ValueOf(item)
-	switch val.Kind() {
-	case reflect.Invalid:
-		return fmt.Sprintf("%s IS%s NULL", op.Column(), map[bool]string{true: "", false: " NOT"}[truthy])
-	case reflect.Slice:
+	val := reflect.ValueOf(op.value)
+	if val.Kind() == reflect.Slice {
 		len := val.Len()
 		if len < 1 {
 			return ""
@@ -105,11 +127,20 @@ func (op *GroupOperator) Add(ops ...Operator) {
 	op.items = append(op.items, ops...)
 }
 
+// Keys returns all the keys found in its sub-operators in order
+func (op *GroupOperator) Keys() []string {
+	keys := []string{}
+	for _, item := range op.items {
+		keys = append(keys, item.Keys()...)
+	}
+	return keys
+}
+
 // Value returns all the values found in its sub-operators
-func (op *GroupOperator) Value() map[string]interface{} {
+func (op *GroupOperator) Values() map[string]interface{} {
 	values := map[string]interface{}{}
 	for _, item := range op.items {
-		for key, val := range item.Value() {
+		for key, val := range item.Values() {
 			values[key] = val
 		}
 	}
