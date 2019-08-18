@@ -35,7 +35,7 @@ func (q *SelectQuery) Select(selectors ...string) *SelectQuery {
 	return q
 }
 
-func (q *SelectQuery) Include(selectors ...string) *SelectQuery {
+func (q *SelectQuery) Join(selectors ...string) *SelectQuery {
 	if len(q.incl) < 1 {
 		q.incl = make([]string, 0, len(selectors))
 	}

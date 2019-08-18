@@ -71,7 +71,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 			name:  "belongs to",
 			model: &AllSelectorExample{},
 			prep: []func(*SelectQuery){
-				func(s *SelectQuery) { s.Include("sub") },
+				func(s *SelectQuery) { s.Join("sub") },
 			},
 			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id, t2.id AS sub_id, t2.name AS sub_name " +
 				"FROM all_selector_examples t1 LEFT JOIN all_selector_sub_examples t2 ON (t1.sub_id=t2.id)",
