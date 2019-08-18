@@ -118,26 +118,32 @@ type traversal struct {
 
 func TraversalsByName(tm *StructMap, columns []string) []traversal {
 	fields := make([]traversal, 0, len(columns))
-	for name, ti := range tm.Names {
-		underscored := strings.ReplaceAll(name, ".", "_")
-		if _, ok := tm.Names[underscored]; !ok {
-			tm.Names[underscored] = ti
-		}
-	}
 	for _, name := range columns {
 		trav := traversal{name: name, index: []int{}}
-		fi, ok := tm.Names[name]
-		if ok {
-			trav.index = fi.Index
-			if relation, ok := fi.Options[OptRelatedTo]; ok {
-				if oi, ok := tm.Names[relation]; ok {
-					trav.relation = oi.Field
-				}
+		if !trav.set(tm, name) {
+			underscored := strings.Replace(name, "_", ".", 1)
+			if !trav.set(tm, underscored) {
+				continue
 			}
 		}
 		fields = append(fields, trav)
 	}
 	return fields
+}
+
+func (trav *traversal) set(tm *StructMap, name string) bool {
+	fi, ok := tm.Names[name]
+	if !ok {
+		return false
+	}
+	trav.index = fi.Index
+	if relation, ok := fi.Options[OptRelatedTo]; ok {
+		if oi, ok := tm.Names[relation]; ok {
+			trav.relation = oi.Field
+		}
+	}
+	delete(tm.Names, name)
+	return true
 }
 
 // TMP:rewrite
