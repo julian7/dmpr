@@ -27,7 +27,6 @@ func TypeOf(model interface{}) reflect.Type {
 	if t.Kind() == reflect.Slice {
 		return t.Elem()
 	}
-
 	return t
 }
 
@@ -77,7 +76,7 @@ func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 		if _, ok := fi.Options[OptRelatedTo]; ok {
 			continue
 		}
-		field := computeField(fi)
+		field := fi.QField()
 		if field != nil {
 			queryFields = append(queryFields, *field)
 		}
@@ -101,7 +100,7 @@ func RelatedFieldsFor(fields []FieldListItem, relation string) ([]queryField, er
 		}
 		fi.Name = strings.TrimPrefix(fi.Name, rel)
 
-		field := computeField(fi)
+		field := fi.QField()
 		if field != nil {
 			queryFields = append(queryFields, *field)
 		}
@@ -166,20 +165,4 @@ func fieldsByTraversal(v reflect.Value, traversals []traversal, values []interfa
 		}
 	}
 	return nil
-}
-
-func computeField(fi FieldListItem) *queryField {
-	val := ":" + fi.Name
-	for _, opt := range []string{"relation", "belongs"} {
-		_, ok := fi.Options[opt]
-		if ok {
-			return nil
-		}
-	}
-	field := &queryField{}
-	field.key = fi.Name
-	field.opts = fi.Options
-	field.val = val
-	field.eq = fi.Name + "=" + val
-	return field
 }
