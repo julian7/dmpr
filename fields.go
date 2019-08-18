@@ -1,6 +1,7 @@
 package dmpr
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -8,7 +9,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-const OptRelatedTo = "_related_to_"
+const (
+	RelNotFound = iota
+	RelBelongsTo
+	RelHasN
+	OptRelatedTo = "_related_to_"
+	OptBelongs   = "belongs"
+	OptRelation  = "relation"
+)
 
 type queryField struct {
 	key  string
@@ -55,7 +63,7 @@ func FieldList(tm *StructMap) []FieldListItem {
 				continue
 			}
 		}
-		if _, ok := fi.Options["belongs"]; ok {
+		if _, ok := fi.Options[OptBelongs]; ok {
 			related = append(related, fi.Path)
 		}
 		fieldStruct := tm.Type.FieldByIndex(fi.Index)
@@ -84,29 +92,61 @@ func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 	return queryFields, nil
 }
 
-func RelatedFieldsFor(fields []FieldListItem, relation string) ([]queryField, error) {
-	subfields := []FieldListItem{}
+func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func(reflect.Type) *StructMap) (string, []string, error) {
 	for _, field := range fields {
-		if subfield, ok := field.Options[OptRelatedTo]; ok && relation == subfield {
-			subfields = append(subfields, field)
+		if field.Name == relation {
+			if subfield, ok := field.Options[OptRelation]; ok {
+				return HasNFieldsFor(relation, tableref, subfield, field.Type, cb)
+			}
+			tablename, err := tableNameByType(field.Type)
+			if err != nil {
+				return "", nil, err
+			}
+			return BelongsToFieldsFor(fields, relation, tableref, tablename)
 		}
 	}
-	queryFields := make([]queryField, 0, len(subfields))
+	return "", nil, errors.Errorf("Relation %s not found", relation)
+}
 
+func BelongsToFieldsFor(fields []FieldListItem, relation, tableref, tablename string) (string, []string, error) {
+	joined := fmt.Sprintf("%s %s ON (t1.%s_id=%s.id)", tablename, tableref, relation, tableref)
+	selected := []string{}
+	rel := len(relation) + 1
+FieldScan:
 	for _, fi := range fields {
-		rel := relation + "."
-		if !strings.HasPrefix(fi.Name, rel) {
-			continue
+		for _, option := range []string{OptRelation, OptBelongs} {
+			if _, ok := fi.Options[option]; ok {
+				continue FieldScan
+			}
 		}
-		fi.Name = strings.TrimPrefix(fi.Name, rel)
-
-		field := fi.QField()
-		if field != nil {
-			queryFields = append(queryFields, *field)
+		if subfield, ok := fi.Options[OptRelatedTo]; ok && relation == subfield {
+			name := fi.Name[rel:]
+			selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, name, relation, name))
 		}
 	}
-	return queryFields, nil
+	return joined, selected, nil
+}
 
+func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *StructMap) (string, []string, error) {
+	t = deref(t)
+	if t.Kind() == reflect.Slice {
+		t = t.Elem()
+	}
+	tablename, err := tableNameByType(t)
+	if err != nil {
+		return "", nil, err
+	}
+	joined := fmt.Sprintf("%s %s ON (t1.id=%s.%s_id)", tablename, tableref, tableref, relindex)
+	fields, err := FieldsFor(FieldList(typeMapper(t)))
+	if err != nil {
+		return "", nil, err
+	}
+
+	selected := make([]string, 0, len(fields))
+	for _, field := range fields {
+		selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, field.key, relation, field.key))
+	}
+	return joined, selected, nil
 }
 
 type traversal struct {

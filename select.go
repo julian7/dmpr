@@ -70,11 +70,11 @@ func (q *SelectQuery) All() error {
 
 	query, args, err := q.allSelector()
 	if err != nil {
-		return nil
+		return err
 	}
 	rows, err := q.mapper.Queryx(query, args...)
 	if err != nil {
-		return nil
+		return err
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
@@ -146,19 +146,15 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 
 	if len(q.incl) > 0 {
 		for idx, incl := range q.incl {
-			fields, err := RelatedFieldsFor(fieldlist, incl)
-			if err != nil {
-				return nil, joined, err
-			}
-			joinTable, err := SubTableName(fieldlist, incl)
-			if err != nil {
-				return nil, joined, err
-			}
 			tableref := fmt.Sprintf("t%d", idx+2)
-			joined = append(joined, fmt.Sprintf("%s %s ON (t1.%s_id=%s.id)", joinTable, tableref, incl, tableref))
-			for _, field := range fields {
-				selected = append(selected, fmt.Sprintf("t%d.%s AS %s_%s", idx+2, field.key, incl, field.key))
+			joining, selecting, err := RelatedFieldsFor(fieldlist, incl, tableref, func(t reflect.Type) *StructMap {
+				return q.mapper.TypeMap(t)
+			})
+			if err != nil {
+				return nil, joined, err
 			}
+			joined = append(joined, joining)
+			selected = append(selected, selecting...)
 		}
 	}
 	return selected, joined, nil

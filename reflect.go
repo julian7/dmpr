@@ -49,6 +49,7 @@ func tableName(model interface{}) (string, error) {
 }
 
 func tableNameByType(t reflect.Type) (string, error) {
+	t = deref(t)
 	modelName := flect.Underscore(t.Name())
 	if modelName == "" {
 		return "", ErrInvalidType

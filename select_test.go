@@ -16,6 +16,7 @@ type AllSelectorExample struct {
 	ID     int
 	Name   string
 	Extras null.String           `db:"extras,omitempty"`
+	SelID  int                   `db:"sel_id"`
 	SubID  int                   `db:"sub_id"`
 	Sub    AllSelectorSubExample `db:"sub,belongs"`
 }
@@ -23,6 +24,19 @@ type AllSelectorExample struct {
 type AllSelectorSubExample struct {
 	ID   int
 	Name string
+	Sel  *AllSelectorExample `db:"sel,relation=sel"`
+}
+
+type AllSelectorManyExample struct {
+	ID   int
+	Name string
+	Sel  *[]AllSelectorManySubExample `db:"sel,relation=sel"`
+}
+
+type AllSelectorManySubExample struct {
+	ID   int
+	Name string
+	Sel  *[]AllSelectorManyExample `db:"sel,relation=sel"`
 }
 
 func TestSelectQuery_allSelector(t *testing.T) {
@@ -41,17 +55,17 @@ func TestSelectQuery_allSelector(t *testing.T) {
 		},
 		{
 			name:  "unexported model",
-			model: struct{}{},
+			model: &[]struct{}{},
 			err:   errors.New("Invalid Model Type"),
 		},
 		{
 			name:  "get all fields",
-			model: &AllSelectorExample{},
-			want:  "SELECT t1.id, t1.name, t1.extras, t1.sub_id FROM all_selector_examples t1",
+			model: &[]AllSelectorExample{},
+			want:  "SELECT t1.id, t1.name, t1.extras, t1.sel_id, t1.sub_id FROM all_selector_examples t1",
 		},
 		{
 			name:  "get selected fields",
-			model: &AllSelectorExample{},
+			model: &[]AllSelectorExample{},
 			prep: []func(*SelectQuery){
 				func(s *SelectQuery) { s.Select("id", "extras") },
 			},
@@ -59,22 +73,41 @@ func TestSelectQuery_allSelector(t *testing.T) {
 		},
 		{
 			name:  "filter query",
-			model: &AllSelectorExample{},
+			model: &[]AllSelectorExample{},
 			prep: []func(*SelectQuery){
 				func(s *SelectQuery) { s.Where(Eq("id", 3)) },
 				func(s *SelectQuery) { s.Where(Eq("extras", nil)) },
 			},
 			maps: []interface{}{3, nil},
-			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id FROM all_selector_examples t1 WHERE id = :id AND extras IS NULL",
+			want: "SELECT t1.id, t1.name, t1.extras, t1.sel_id, t1.sub_id FROM all_selector_examples t1 WHERE id = :id AND extras IS NULL",
 		},
 		{
 			name:  "belongs to",
-			model: &AllSelectorExample{},
+			model: &[]AllSelectorExample{},
 			prep: []func(*SelectQuery){
 				func(s *SelectQuery) { s.Join("sub") },
 			},
-			want: "SELECT t1.id, t1.name, t1.extras, t1.sub_id, t2.id AS sub_id, t2.name AS sub_name " +
+			want: "SELECT t1.id, t1.name, t1.extras, t1.sel_id, t1.sub_id, t2.id AS sub_id, t2.name AS sub_name " +
 				"FROM all_selector_examples t1 LEFT JOIN all_selector_sub_examples t2 ON (t1.sub_id=t2.id)",
+		},
+		{
+			name:  "has one",
+			model: &[]AllSelectorSubExample{},
+			prep: []func(*SelectQuery){
+				func(s *SelectQuery) { s.Join("sel") },
+			},
+			want: "SELECT t1.id, t1.name, t2.id AS sel_id, t2.name AS sel_name, t2.extras AS sel_extras, " +
+				"t2.sel_id AS sel_sel_id, t2.sub_id AS sel_sub_id " +
+				"FROM all_selector_sub_examples t1 LEFT JOIN all_selector_examples t2 ON (t1.id=t2.sel_id)",
+		},
+		{
+			name:  "has many",
+			model: &[]AllSelectorManyExample{},
+			prep: []func(*SelectQuery){
+				func(s *SelectQuery) { s.Join("sel") },
+			},
+			want: "SELECT t1.id, t1.name, t2.id AS sel_id, t2.name AS sel_name " +
+				"FROM all_selector_many_examples t1 LEFT JOIN all_selector_many_sub_examples t2 ON (t1.id=t2.sel_id)",
 		},
 	}
 	for _, tt := range tests {
@@ -108,7 +141,7 @@ func TestSelectQuery_allSelector(t *testing.T) {
 			}
 
 			if got != tt.want {
-				t.Errorf("SelectQuery.allSelector() = %v, want %v", got, tt.want)
+				t.Errorf("SelectQuery.allSelector() got\n%v\nwant\n%v", got, tt.want)
 			}
 			if tt.maps == nil {
 				tt.maps = []interface{}{}
