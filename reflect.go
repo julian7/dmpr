@@ -57,15 +57,6 @@ func tableNameByType(t reflect.Type) (string, error) {
 	return flect.Pluralize(modelName), nil
 }
 
-func SubTableName(fields []FieldListItem, fieldName string) (string, error) {
-	for _, field := range fields {
-		if field.Path == fieldName {
-			return tableNameByType(field.Type)
-		}
-	}
-	return "", errors.New("field not found")
-}
-
 // copied from stdlib's encoding/json/encode.go, added driver.Valuer handling
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {
