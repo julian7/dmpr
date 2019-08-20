@@ -135,8 +135,7 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 		return q.sel, joined, nil
 	}
 	structmap := q.mapper.TypeMap(TypeOf(q.model))
-	fieldlist := structmap.Fields
-	fields, err := FieldsFor(fieldlist)
+	fields, err := structmap.FieldsFor()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -147,8 +146,8 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 	if len(q.incl) > 0 {
 		for idx, incl := range q.incl {
 			tableref := fmt.Sprintf("t%d", idx+2)
-			joining, selecting, err := RelatedFieldsFor(fieldlist, incl, tableref, func(t reflect.Type) []FieldListItem {
-				return q.mapper.TypeMap(t).Fields
+			joining, selecting, err := structmap.RelatedFieldsFor(incl, tableref, func(t reflect.Type) *FieldList {
+				return q.mapper.TypeMap(t)
 			})
 			if err != nil {
 				return nil, joined, err

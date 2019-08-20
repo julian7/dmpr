@@ -51,7 +51,7 @@ func (m *Mapper) Create(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	fields, err := FieldsFor(m.TypeMap(TypeOf(model)).Fields)
+	fields, err := m.TypeMap(TypeOf(model)).FieldsFor()
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (m *Mapper) Update(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	fields, err := FieldsFor(m.TypeMap(TypeOf(model)).Fields)
+	fields, err := m.TypeMap(TypeOf(model)).FieldsFor()
 	if err != nil {
 		return err
 	}

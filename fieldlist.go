@@ -1,8 +1,11 @@
 package dmpr
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // FieldList stores fields of a reflectx.StructMap's Index (from sqlx), with the structure's type
@@ -61,6 +64,85 @@ func (m *Mapper) TypeMap(t reflect.Type) *FieldList {
 		})
 	}
 	return fieldList
+}
+
+// FieldsFor converts FieldListItems to query fields SQL query builders can use. It doesn't include related fields.
+func (fl *FieldList) FieldsFor() ([]queryField, error) {
+	queryFields := make([]queryField, 0, len(fl.Fields))
+FieldsForLoop:
+	for _, fi := range fl.Fields {
+		for _, item := range []string{OptRelatedTo, OptUnrelated} {
+			if _, ok := fi.Options[item]; ok {
+				continue FieldsForLoop
+			}
+		}
+		field := fi.QField()
+		if field != nil {
+			queryFields = append(queryFields, *field)
+		}
+	}
+	return queryFields, nil
+}
+
+// RelatedFieldsFor converts FieldListItems to JOINs and SELECTs SQL query builders can use directly
+func (fl *FieldList) RelatedFieldsFor(relation, tableref string, cb func(reflect.Type) *FieldList) (joins string, selects []string, err error) {
+	for _, field := range fl.Fields {
+		if field.Path == relation {
+			if subfield, ok := field.Options[OptRelation]; ok {
+				return HasNFieldsFor(relation, tableref, subfield, field.Type, cb)
+			}
+			tablename, err := tableNameByType(field.Type)
+			if err != nil {
+				return "", nil, err
+			}
+			return fl.BelongsToFieldsFor(relation, tableref, tablename)
+		}
+	}
+	return "", nil, errors.Errorf("Relation %q not found", relation)
+}
+
+// BelongsToFieldsFor converts FieldListItems to JOIN and SELECTs query substrings SQL query buildders can use directly
+func (fl *FieldList) BelongsToFieldsFor(relation, tableref, tablename string) (string, []string, error) {
+	joined := fmt.Sprintf("%s %s ON (t1.%s_id=%s.id)", tablename, tableref, relation, tableref)
+	selected := []string{}
+	rel := len(relation) + 1
+FieldScan:
+	for _, fi := range fl.Fields {
+		for _, option := range []string{OptUnrelated, OptRelation, OptBelongs} {
+			if _, ok := fi.Options[option]; ok {
+				continue FieldScan
+			}
+		}
+		if subfield, ok := fi.Options[OptRelatedTo]; ok && relation == subfield {
+			name := fi.Path[rel:]
+			selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, name, relation, name))
+		}
+	}
+	return joined, selected, nil
+}
+
+// HasNFieldsFor queries related model to build JOIN and SELECTs query substrings SQL query buildders can use directly.
+// It uses a callback, which can provide a *FieldList from the referenced type.
+func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *FieldList) (string, []string, error) {
+	t = deref(t)
+	if t.Kind() == reflect.Slice {
+		t = t.Elem()
+	}
+	tablename, err := tableNameByType(t)
+	if err != nil {
+		return "", nil, err
+	}
+	joined := fmt.Sprintf("%s %s ON (t1.id=%s.%s_id)", tablename, tableref, tableref, relindex)
+	fields, err := typeMapper(t).FieldsFor()
+	if err != nil {
+		return "", nil, err
+	}
+
+	selected := make([]string, 0, len(fields))
+	for _, field := range fields {
+		selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, field.key, relation, field.key))
+	}
+	return joined, selected, nil
 }
 
 // TraversalsByName provides a traversal index for SELECT query results, to map result rows' columns with model's entry positions
