@@ -146,7 +146,7 @@ func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapp
 }
 
 // TraversalsByName provides a traversal index for SELECT query results, to map result rows' columns with model's entry positions
-func (fl *FieldList) TraversalsByName(columns []string) []traversal {
+func (fl *FieldList) TraversalsByName(columns []string) ([]traversal, error) {
 	fields := make([]traversal, len(columns))
 	toDo := make([]int, 0, len(columns))
 	for idx := range columns {
@@ -175,8 +175,9 @@ func (fl *FieldList) TraversalsByName(columns []string) []traversal {
 		for id, idx := range toDo {
 			cols[id] = columns[idx]
 		}
+		return nil, errors.Errorf("unable to locate columns in model struct: %s", strings.Join(cols, ", "))
 	}
-	return fields
+	return fields, nil
 }
 
 // QField returns a query field based on a FieldListItem
