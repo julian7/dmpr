@@ -59,7 +59,7 @@ func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 }
 
 // RelatedFieldsFor converts FieldListItems to JOINs and SELECTs SQL query builders can use directly
-func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func(reflect.Type) *FieldList) (joins string, selects []string, err error) {
+func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func(reflect.Type) []FieldListItem) (joins string, selects []string, err error) {
 	for _, field := range fields {
 		if field.Name == relation {
 			if subfield, ok := field.Options[OptRelation]; ok {
@@ -96,8 +96,8 @@ FieldScan:
 }
 
 // HasNFieldsFor queries related model to build JOIN and SELECTs query substrings SQL query buildders can use directly.
-// It uses a callback, which can provide a FieldList from the referenced type.
-func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *FieldList) (string, []string, error) {
+// It uses a callback, which can provide a []FieldListItem from the referenced type.
+func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) []FieldListItem) (string, []string, error) {
 	t = deref(t)
 	if t.Kind() == reflect.Slice {
 		t = t.Elem()
@@ -107,7 +107,7 @@ func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapp
 		return "", nil, err
 	}
 	joined := fmt.Sprintf("%s %s ON (t1.id=%s.%s_id)", tablename, tableref, tableref, relindex)
-	fields, err := FieldsFor(typeMapper(t).Itemize())
+	fields, err := FieldsFor(typeMapper(t))
 	if err != nil {
 		return "", nil, err
 	}
