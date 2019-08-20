@@ -81,7 +81,7 @@ func (q *SelectQuery) All() error {
 	if err != nil {
 		return errors.Wrap(err, "SelectAll columns")
 	}
-	fields := TraversalsByName(q.mapper.TypeMap(t), columns)
+	fields := q.mapper.TypeMap(t).TraversalsByName(columns)
 
 	values := make([]interface{}, len(columns))
 	for rows.Next() {
