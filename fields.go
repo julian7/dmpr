@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	// OptRelatedTo is a struct tag option mapper inserts for all columns, which is a subfield of an embedded table. Its value is the name of the embedded table.
+	// OptRelatedTo is an internal struct tag option mapper inserts for all columns, which is a subfield of an embedded table. Its value is the name of the embedded table.
 	OptRelatedTo = "_related_to_"
+	// OptUnrelated is an internal struct tag option mapper inserts for all columns, which have parents, but they are not a subfield of a known relation.
+	OptUnrelated = "_unrelated_"
 	// OptBelongs is a struct tag option marking a "belongs-to" relation.
 	OptBelongs = "belongs"
 	// OptRelation is a struct tag option marking a "has-one" or "has-many" relation.
@@ -45,10 +47,12 @@ func (m *Mapper) FieldMap(model interface{}) map[string]reflect.Value {
 // FieldsFor converts FieldListItems to query fields SQL query builders can use. It doesn't include related fields.
 func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 	queryFields := make([]queryField, 0, len(fields))
-
+FieldsForLoop:
 	for _, fi := range fields {
-		if _, ok := fi.Options[OptRelatedTo]; ok {
-			continue
+		for _, item := range []string{OptRelatedTo, OptUnrelated} {
+			if _, ok := fi.Options[item]; ok {
+				continue FieldsForLoop
+			}
 		}
 		field := fi.QField()
 		if field != nil {
@@ -82,7 +86,7 @@ func BelongsToFieldsFor(fields []FieldListItem, relation, tableref, tablename st
 	rel := len(relation) + 1
 FieldScan:
 	for _, fi := range fields {
-		for _, option := range []string{OptRelation, OptBelongs} {
+		for _, option := range []string{OptUnrelated, OptRelation, OptBelongs} {
 			if _, ok := fi.Options[option]; ok {
 				continue FieldScan
 			}

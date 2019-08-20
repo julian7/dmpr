@@ -1,25 +1,24 @@
 package dmpr
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/jmoiron/sqlx/reflectx"
 )
 
 // FieldList stores fields of a reflectx.StructMap's Index (from sqlx), with the structure's type
 type FieldList struct {
-	Fields []*reflectx.FieldInfo
+	Fields []FieldListItem
 	Type   reflect.Type
 }
 
 // FieldListItem is a line item of a model's field list
 type FieldListItem struct {
 	reflect.Type
-	Field   *reflect.StructField
-	Path    string
+	Field   reflect.StructField
+	Index   []int
+	Name    string
 	Options map[string]string
+	Path    string
 }
 
 // TypeMap returns a map of types in the form of a StructMap, from the original model's type
@@ -28,19 +27,16 @@ func (m *Mapper) TypeMap(t reflect.Type) *FieldList {
 		m.logger.Warnf("cannot get type map of %+v: %v", t, err)
 		return nil
 	}
-	return &FieldList{Type: t, Fields: m.Conn.Mapper.TypeMap(t).Index}
-}
-
-// Itemize reads StructMap, and returns a slice of FieldListItem. It detects subfields of belonging items, while flagging subfields with OptRelatedTo option in the StructMap, for future use (see RelatedFieldsFor and BelongsToFieldsFor)
-func (fl *FieldList) Itemize() []FieldListItem {
+	fieldList := &FieldList{Type: t}
+	fl := m.Conn.Mapper.TypeMap(t).Index
 	related := []string{}
-	for _, fi := range fl.Fields {
+	for _, fi := range fl {
 		if _, ok := fi.Options[OptBelongs]; ok {
 			related = append(related, fi.Path)
 		}
 	}
-	fields := make([]FieldListItem, 0, len(fl.Fields))
-	for _, fi := range fl.Fields {
+	fieldList.Fields = make([]FieldListItem, 0, len(fl))
+	for _, fi := range fl {
 		if fi.Parent.Field.Type != nil {
 			found := false
 			for _, rel := range related {
@@ -51,18 +47,20 @@ func (fl *FieldList) Itemize() []FieldListItem {
 				}
 			}
 			if !found {
-				continue
+				fi.Options[OptUnrelated] = ""
 			}
 		}
-		fieldStruct := fl.Type.FieldByIndex(fi.Index)
-		fields = append(fields, FieldListItem{
-			Path:    fi.Path,
+		fieldStruct := t.FieldByIndex(fi.Index)
+		fieldList.Fields = append(fieldList.Fields, FieldListItem{
+			Field:   fieldStruct,
+			Index:   fi.Index,
+			Name:    fi.Name,
 			Options: fi.Options,
-			Field:   &fieldStruct,
+			Path:    fi.Path,
 			Type:    fieldStruct.Type,
 		})
 	}
-	return fields
+	return fieldList
 }
 
 // TraversalsByName provides a traversal index for SELECT query results, to map result rows' columns with model's entry positions
@@ -94,11 +92,6 @@ func (fl *FieldList) TraversalsByName(columns []string) []traversal {
 		cols := make([]string, len(toDo))
 		for id, idx := range toDo {
 			cols[id] = columns[idx]
-		}
-		fmt.Printf("Remaining columns: %v\n", cols)
-		fmt.Printf("Fields:\n")
-		for _, fi := range fl.Fields {
-			fmt.Printf("- %s\n", fi.Path)
 		}
 	}
 	return fields
