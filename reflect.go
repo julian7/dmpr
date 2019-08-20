@@ -59,7 +59,7 @@ func tableNameByType(t reflect.Type) (string, error) {
 
 func SubTableName(fields []FieldListItem, fieldName string) (string, error) {
 	for _, field := range fields {
-		if field.Name == fieldName {
+		if field.Path == fieldName {
 			return tableNameByType(field.Type)
 		}
 	}

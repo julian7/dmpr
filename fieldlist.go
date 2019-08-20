@@ -18,7 +18,7 @@ type FieldList struct {
 type FieldListItem struct {
 	reflect.Type
 	Field   *reflect.StructField
-	Name    string
+	Path    string
 	Options map[string]string
 }
 
@@ -56,7 +56,7 @@ func (fl *FieldList) Itemize() []FieldListItem {
 		}
 		fieldStruct := fl.Type.FieldByIndex(fi.Index)
 		fields = append(fields, FieldListItem{
-			Name:    fi.Path,
+			Path:    fi.Path,
 			Options: fi.Options,
 			Field:   &fieldStruct,
 			Type:    fieldStruct.Type,
@@ -106,7 +106,7 @@ func (fl *FieldList) TraversalsByName(columns []string) []traversal {
 
 // QField returns a query field based on a FieldListItem
 func (fi FieldListItem) QField() *queryField {
-	val := ":" + fi.Name
+	val := ":" + fi.Path
 	for _, opt := range []string{"relation", "belongs"} {
 		_, ok := fi.Options[opt]
 		if ok {
@@ -114,9 +114,9 @@ func (fi FieldListItem) QField() *queryField {
 		}
 	}
 	field := &queryField{}
-	field.key = fi.Name
+	field.key = fi.Path
 	field.opts = fi.Options
 	field.val = val
-	field.eq = fi.Name + "=" + val
+	field.eq = fi.Path + "=" + val
 	return field
 }

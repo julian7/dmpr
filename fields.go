@@ -61,7 +61,7 @@ func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 // RelatedFieldsFor converts FieldListItems to JOINs and SELECTs SQL query builders can use directly
 func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func(reflect.Type) []FieldListItem) (joins string, selects []string, err error) {
 	for _, field := range fields {
-		if field.Name == relation {
+		if field.Path == relation {
 			if subfield, ok := field.Options[OptRelation]; ok {
 				return HasNFieldsFor(relation, tableref, subfield, field.Type, cb)
 			}
@@ -88,7 +88,7 @@ FieldScan:
 			}
 		}
 		if subfield, ok := fi.Options[OptRelatedTo]; ok && relation == subfield {
-			name := fi.Name[rel:]
+			name := fi.Path[rel:]
 			selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, name, relation, name))
 		}
 	}
