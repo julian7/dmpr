@@ -66,20 +66,6 @@ func SubTableName(fields []FieldListItem, fieldName string) (string, error) {
 	return "", errors.New("field not found")
 }
 
-func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
-	for _, i := range indexes {
-		v = reflect.Indirect(v).Field(i)
-		if v.Kind() == reflect.Ptr && v.IsNil() {
-			alloc := reflect.New(deref(v.Type()))
-			v.Set(alloc)
-		}
-		if v.Kind() == reflect.Map && v.IsNil() {
-			v.Set(reflect.MakeMap(v.Type()))
-		}
-	}
-	return v
-}
-
 // copied from stdlib's encoding/json/encode.go, added driver.Valuer handling
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {

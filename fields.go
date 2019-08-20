@@ -7,15 +7,16 @@ import (
 
 	"github.com/jmoiron/sqlx/reflectx"
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/log"
 )
 
 const (
-	RelNotFound = iota
-	RelBelongsTo
-	RelHasN
+	// OptRelatedTo is a struct tag option mapper inserts for all columns, which is a subfield of an embedded table. Its value is the name of the embedded table.
 	OptRelatedTo = "_related_to_"
-	OptBelongs   = "belongs"
-	OptRelation  = "relation"
+	// OptBelongs is a struct tag option marking a "belongs-to" relation.
+	OptBelongs = "belongs"
+	// OptRelation is a struct tag option marking a "has-one" or "has-many" relation.
+	OptRelation = "relation"
 )
 
 type queryField struct {
@@ -25,11 +26,13 @@ type queryField struct {
 	opts map[string]string
 }
 
+// StructMap is an extension of reflectx.StructMap (from sqlx), to store the structure's type too.
 type StructMap struct {
 	*reflectx.StructMap
 	Type reflect.Type
 }
 
+// TypeOf returns the type of a model. It handles pointer, slice, and pointer of slice indirections.
 func TypeOf(model interface{}) reflect.Type {
 	t := indirect(reflect.ValueOf(model)).Type()
 	if t.Kind() == reflect.Slice {
@@ -38,16 +41,33 @@ func TypeOf(model interface{}) reflect.Type {
 	return t
 }
 
-func (mapper *Mapper) FieldMap(model interface{}) map[string]reflect.Value {
-	return mapper.Conn.Mapper.FieldMap(indirect(reflect.ValueOf(model)))
+// FieldMap returns a map of fields for a model. It handles pointer of model.
+func (m *Mapper) FieldMap(model interface{}) map[string]reflect.Value {
+	if err := m.tryOpen(); err != nil {
+		log.Warnf("cannot get field map of %+v: %v", model, err)
+		return map[string]reflect.Value{}
+	}
+	return m.Conn.Mapper.FieldMap(indirect(reflect.ValueOf(model)))
 }
 
-func (mapper *Mapper) TypeMap(t reflect.Type) *StructMap {
-	return &StructMap{Type: t, StructMap: mapper.Conn.Mapper.TypeMap(t)}
+// TypeMap returns a map of types in the form of a StructMap, from the original model's type
+func (m *Mapper) TypeMap(t reflect.Type) *StructMap {
+	if err := m.tryOpen(); err != nil {
+		log.Warnf("cannot get type map of %+v: %v", t, err)
+		return nil
+	}
+	return &StructMap{Type: t, StructMap: m.Conn.Mapper.TypeMap(t)}
 }
 
+// FieldList reads StructMap, and returns a slice of FieldListItem. It detects subfields of belonging items, while flagging subfields with OptRelatedTo option in the StructMap, for future use (see RelatedFieldsFor and BelongsToFieldsFor)
 func FieldList(tm *StructMap) []FieldListItem {
 	related := []string{}
+
+	for _, fi := range tm.Index {
+		if _, ok := fi.Options[OptBelongs]; ok {
+			related = append(related, fi.Path)
+		}
+	}
 	fields := make([]FieldListItem, 0, len(tm.Names))
 	for _, fi := range tm.Index {
 		if fi.Parent.Field.Type != nil {
@@ -63,9 +83,6 @@ func FieldList(tm *StructMap) []FieldListItem {
 				continue
 			}
 		}
-		if _, ok := fi.Options[OptBelongs]; ok {
-			related = append(related, fi.Path)
-		}
 		fieldStruct := tm.Type.FieldByIndex(fi.Index)
 		fields = append(fields, FieldListItem{
 			Name:    fi.Path,
@@ -77,6 +94,7 @@ func FieldList(tm *StructMap) []FieldListItem {
 	return fields
 }
 
+// FieldsFor converts FieldListItems to query fields SQL query builders can use. It doesn't include related fields.
 func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 	queryFields := make([]queryField, 0, len(fields))
 
@@ -92,7 +110,8 @@ func FieldsFor(fields []FieldListItem) ([]queryField, error) {
 	return queryFields, nil
 }
 
-func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func(reflect.Type) *StructMap) (string, []string, error) {
+// RelatedFieldsFor converts FieldListItems to JOINs and SELECTs SQL query builders can use directly
+func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func(reflect.Type) *StructMap) (joins string, selects []string, err error) {
 	for _, field := range fields {
 		if field.Name == relation {
 			if subfield, ok := field.Options[OptRelation]; ok {
@@ -108,6 +127,7 @@ func RelatedFieldsFor(fields []FieldListItem, relation, tableref string, cb func
 	return "", nil, errors.Errorf("Relation %s not found", relation)
 }
 
+// BelongsToFieldsFor converts FieldListItems to JOIN and SELECTs query substrings SQL query buildders can use directly
 func BelongsToFieldsFor(fields []FieldListItem, relation, tableref, tablename string) (string, []string, error) {
 	joined := fmt.Sprintf("%s %s ON (t1.%s_id=%s.id)", tablename, tableref, relation, tableref)
 	selected := []string{}
@@ -127,6 +147,8 @@ FieldScan:
 	return joined, selected, nil
 }
 
+// HasNFieldsFor queries related model to build JOIN and SELECTs query substrings SQL query buildders can use directly.
+// It uses a callback, which can provide a StructMap from the referenced type.
 func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *StructMap) (string, []string, error) {
 	t = deref(t)
 	if t.Kind() == reflect.Slice {
@@ -155,6 +177,7 @@ type traversal struct {
 	relation reflect.StructField
 }
 
+// TraversalsByName provides a traversal index for SELECT query results, to map result rows' columns with model's entry positions
 func TraversalsByName(tm *StructMap, columns []string) []traversal {
 	fields := make([]traversal, 0, len(columns))
 	for _, name := range columns {
@@ -170,6 +193,7 @@ func TraversalsByName(tm *StructMap, columns []string) []traversal {
 	return fields
 }
 
+// set pulls Index information from the StructMap by column name, marking the name as read to prevent idempotency
 func (trav *traversal) set(tm *StructMap, name string) bool {
 	fi, ok := tm.Names[name]
 	if !ok {
@@ -185,7 +209,22 @@ func (trav *traversal) set(tm *StructMap, name string) bool {
 	return true
 }
 
-// TMP:rewrite
+// fieldByIndexes dials in to a value by index #s, returning the value inside. It allocates pointers and maps when needed.
+func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
+	for _, i := range indexes {
+		v = reflect.Indirect(v).Field(i)
+		if v.Kind() == reflect.Ptr && v.IsNil() {
+			alloc := reflect.New(deref(v.Type()))
+			v.Set(alloc)
+		}
+		if v.Kind() == reflect.Map && v.IsNil() {
+			v.Set(reflect.MakeMap(v.Type()))
+		}
+	}
+	return v
+}
+
+// fieldsByTraversal TMP:rewrite: fills traversal entries into a slice of models (values) based on traversal indexes
 func fieldsByTraversal(v reflect.Value, traversals []traversal, values []interface{}, ptrs bool) error {
 	v = reflect.Indirect(v)
 	if v.Kind() != reflect.Struct {
