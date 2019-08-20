@@ -4,8 +4,6 @@ This database mapper is written for sqlx database library, mainly supporting pos
 
 ## TO DO
 
-* belongs: doesn't fill belonging field's ID field
-* has one
 * has many
 
 ## In Scope
@@ -15,10 +13,12 @@ This database mapper is written for sqlx database library, mainly supporting pos
 * provides health report on the connection
 * provides basic query functionality on top of sqlx for logging purposes
 * provides basic model query functionality (Find, FindBy, All, Create, Update, Delete)
+* provides basic "belongs to", "has one" relationships
 
 ## Out of Scope
 
 * Transactions (for now)
+* Cascading joins in select: all joins are referencing the original model only.
 
 ## Map models
 
@@ -32,6 +32,7 @@ Models are structs, and mapper reads their "db" tags for meta-information. Some 
     - omitempty: if the field is empty in the model, it won't be added to Create / Update query
     - relation: it represents "has one" or "has many" relationships (depending on the field type)
     - belongs: represents "belongs_to" relationship. It assumes another field with the same name, but with `_id` suffix.
+    - related maps can and should be added to structs. To avoid circular references, use pointers for related structs.
 
 ## Relations
 
@@ -60,8 +61,44 @@ In this case, Comment belongs to Message, and it's referenced internally as "pos
 Selecting a Comment looks like this:
 
 ```golang
-comment := &Comment{}
-mapper.NewSelect(comment).Where(Eq("id", 1)).Join("post").All()
+comments := &[]Comment{}
+query, err := mapper.NewSelect(comments)
+if err != nil {
+    panic(err)
+}
+query.Where(Eq("id", 1)).Join("post").All()
 ```
 
 This query loads `comment` with an appropriate comment, with the data of `Post`, which is a `Message` object.
+
+## Has one
+
+When a struct "has one" another struct, it stores the struct ID at the other struct:
+
+```golang
+type User struct {
+    ID       int
+    Name     string
+    Password string
+    Profile  *Profile `db:"profile,relation=user"`
+}
+
+type Profile struct {
+    ID      int
+    UserID  int  `db:"user_id"`
+    Email   string
+}
+```
+
+In this case, User "has a" Profile, but Profile doesn't "belong to" User. User requires a reference to a profile, and Profile requieres a `user_id` field. User's Profile field requires an option "relation" with a value how Profile is referencing it.
+
+Selecting a User with profile looks like this:
+
+```golang
+users := &[]User{}
+query, err := mapper.NewSelect(users)
+if err != nil {
+    panic(err)
+}
+query.Where(Eq("id", 1)).Join("profile").All()
+```

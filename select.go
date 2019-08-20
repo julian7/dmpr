@@ -74,12 +74,12 @@ func (q *SelectQuery) All() error {
 	}
 	rows, err := q.mapper.Queryx(query, args...)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "SelectAll query")
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "SelectAll columns")
 	}
 	fields := TraversalsByName(q.mapper.TypeMap(t), columns)
 
@@ -90,11 +90,11 @@ func (q *SelectQuery) All() error {
 
 		err = fieldsByTraversal(v, fields, values, true)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "SelectAll traversal")
 		}
 		err = rows.Scan(values...)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "SelectAll scan")
 		}
 		value.Set(reflect.Append(value, v))
 	}
@@ -135,7 +135,7 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 		return q.sel, joined, nil
 	}
 	structmap := q.mapper.TypeMap(TypeOf(q.model))
-	fieldlist := FieldList(structmap)
+	fieldlist := structmap.Itemize()
 	fields, err := FieldsFor(fieldlist)
 	if err != nil {
 		return nil, nil, err
@@ -147,7 +147,7 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 	if len(q.incl) > 0 {
 		for idx, incl := range q.incl {
 			tableref := fmt.Sprintf("t%d", idx+2)
-			joining, selecting, err := RelatedFieldsFor(fieldlist, incl, tableref, func(t reflect.Type) *StructMap {
+			joining, selecting, err := RelatedFieldsFor(fieldlist, incl, tableref, func(t reflect.Type) *FieldList {
 				return q.mapper.TypeMap(t)
 			})
 			if err != nil {
