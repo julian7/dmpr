@@ -21,6 +21,19 @@ func (m *Mapper) NewSelect(model interface{}) (*SelectQuery, error) {
 	if err != nil {
 		return nil, err
 	}
+	value := reflect.ValueOf(model)
+
+	if value.Kind() != reflect.Ptr {
+		return nil, errors.New("pointer is expected as Select destination")
+	}
+	if value.IsNil() {
+		return nil, errors.New("nil pointer passed to Select destination")
+	}
+	value = reflect.Indirect(value)
+	t := deref(value.Type())
+	if t.Kind() != reflect.Slice {
+		return nil, errors.New("pointer to slice is expected as Select destination")
+	}
 	return &SelectQuery{
 		mapper: m,
 		model:  model,
@@ -53,22 +66,10 @@ func (q *SelectQuery) Where(op Operator) *SelectQuery {
 }
 
 func (q *SelectQuery) All() error {
-	value := reflect.ValueOf(q.model)
+	t, value := Reflect(q.model)
+	fl := q.mapper.TypeMap(t)
 
-	if value.Kind() != reflect.Ptr {
-		return errors.New("pointer is expected as Select destination")
-	}
-	if value.IsNil() {
-		return errors.New("nil pointer passed to Select destination")
-	}
-	value = reflect.Indirect(value)
-	t := deref(value.Type())
-	if t.Kind() != reflect.Slice {
-		return errors.New("pointer to slice is expected as Select destination")
-	}
-	t = deref(t.Elem())
-
-	query, args, err := q.allSelector()
+	query, args, err := q.allSelector(fl)
 	if err != nil {
 		return err
 	}
@@ -81,7 +82,7 @@ func (q *SelectQuery) All() error {
 	if err != nil {
 		return errors.Wrap(err, "SelectAll columns")
 	}
-	fields, err := q.mapper.TypeMap(t).TraversalsByName(columns)
+	fields, err := fl.TraversalsByName(columns)
 	if err != nil {
 		return errors.Wrap(err, "SelectAll traversal")
 	}
@@ -104,12 +105,12 @@ func (q *SelectQuery) All() error {
 	return rows.Err()
 }
 
-func (q *SelectQuery) allSelector() (string, []interface{}, error) {
+func (q *SelectQuery) allSelector(fl *FieldList) (string, []interface{}, error) {
 	table, err := tableName(q.model)
 	if err != nil {
 		return "", nil, err
 	}
-	selected, joined, err := q.getSelect()
+	selected, joined, err := q.getSelect(fl)
 	if err != nil {
 		return "", nil, err
 	}
@@ -131,14 +132,13 @@ func (q *SelectQuery) allSelector() (string, []interface{}, error) {
 	), args, nil
 }
 
-func (q *SelectQuery) getSelect() ([]string, []string, error) {
+func (q *SelectQuery) getSelect(fl *FieldList) ([]string, []string, error) {
 	var selected []string
 	var joined []string
 	if len(q.sel) >= 1 {
 		return q.sel, joined, nil
 	}
-	structmap := q.mapper.TypeMap(TypeOf(q.model))
-	fields, err := structmap.FieldsFor()
+	fields, err := fl.FieldsFor()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,7 +149,7 @@ func (q *SelectQuery) getSelect() ([]string, []string, error) {
 	if len(q.incl) > 0 {
 		for idx, incl := range q.incl {
 			tableref := fmt.Sprintf("t%d", idx+2)
-			joining, selecting, err := structmap.RelatedFieldsFor(incl, tableref, func(t reflect.Type) *FieldList {
+			joining, selecting, err := fl.RelatedFieldsFor(incl, tableref, func(t reflect.Type) *FieldList {
 				return q.mapper.TypeMap(t)
 			})
 			if err != nil {

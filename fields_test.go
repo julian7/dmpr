@@ -50,7 +50,8 @@ func Test_FieldsFor(t *testing.T) {
 				Conn:   sqlx.NewDb(db, "sqlmock"), // "sqlmock" is a magic string @ sqlmock for driver name
 				logger: logrus.New(),
 			}
-			got, err := m.TypeMap(TypeOf(tt.model)).FieldsFor()
+			typ, _ := Reflect(tt.model)
+			got, err := m.TypeMap(typ).FieldsFor()
 			if assert := tester.AssertError(tt.err, err); assert != nil {
 				t.Error(assert)
 			}

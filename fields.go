@@ -25,13 +25,15 @@ type queryField struct {
 	opts map[string]string
 }
 
-// TypeOf returns the type of a model. It handles pointer, slice, and pointer of slice indirections.
-func TypeOf(model interface{}) reflect.Type {
-	t := indirect(reflect.ValueOf(model)).Type()
+// Reflect dissects provided model reference into a type and value for further inspection.
+// It accepts pointer, slice, and pointer of slices indirections.
+func Reflect(model interface{}) (reflect.Type, reflect.Value) {
+	value := indirect(reflect.ValueOf(model))
+	t := value.Type()
 	if t.Kind() == reflect.Slice {
-		return t.Elem()
+		t = t.Elem()
 	}
-	return t
+	return t, value
 }
 
 // FieldMap returns a map of fields for a model. It handles pointer of model.
