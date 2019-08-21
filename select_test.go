@@ -33,7 +33,7 @@ type ExampleHasOne struct {
 type ExampleHasMany struct {
 	ID      int
 	Name    string
-	Belongs *[]ExampleBelongsTo `db:"belongs,relation=many"`
+	Belongs []*ExampleBelongsTo `db:"belongs,relation=many"`
 }
 
 func TestSelectQuery_All(t *testing.T) {
@@ -135,6 +135,41 @@ func TestSelectQuery_All(t *testing.T) {
 						Name:   "subname",
 						OneID:  0,
 						MoreID: 1,
+					},
+				},
+			},
+		},
+		{
+			name:  "has many",
+			model: &[]ExampleHasMany{},
+			prep:  func(s *dmpr.SelectQuery) { s.Join("belongs") },
+			mock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "name", "belongs_id", "belongs_name", "belongs_extras", "belongs_one_id", "belongs_more_id"}).
+					AddRow(1, "test", 2, "subname", nil, 0, 1).
+					AddRow(1, "test", 3, "subname2", nil, 0, 1)
+				mock.ExpectQuery(fmt.Sprintf("^%s", regexp.QuoteMeta(
+					`SELECT t1.id, t1.name, t2.id AS belongs_id, t2.name AS belongs_name, `+
+						`t2.extras AS belongs_extras, t2.one_id AS belongs_one_id, t2.more_id AS belongs_more_id `+
+						`FROM example_has_manies t1 LEFT JOIN example_belongs_toes t2 ON (t1.id=t2.many_id)`,
+				))).WillReturnRows(rows)
+			},
+			expected: &[]ExampleHasMany{
+				{
+					ID:   1,
+					Name: "test",
+					Belongs: []*ExampleBelongsTo{
+						{
+							ID:     2,
+							Name:   "subname",
+							OneID:  0,
+							MoreID: 1,
+						},
+						{
+							ID:     3,
+							Name:   "subname2",
+							OneID:  0,
+							MoreID: 1,
+						},
 					},
 				},
 			},

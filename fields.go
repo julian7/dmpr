@@ -54,7 +54,18 @@ type traversal struct {
 // fieldByIndexes dials in to a value by index #s, returning the value inside. It allocates pointers and maps when needed.
 func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
 	for _, i := range indexes {
-		v = reflect.Indirect(v).Field(i)
+		v = reflect.Indirect(v)
+		if v.Kind() == reflect.Slice {
+			if v.Len() > 0 {
+				v = indirect(v.Index(0))
+			} else {
+				t := v.Type().Elem()
+				newVal := reflect.New(deref(t))
+				v.Set(reflect.Append(v, newVal))
+				v = reflect.Indirect(newVal)
+			}
+		}
+		v = v.Field(i)
 		if v.Kind() == reflect.Ptr && v.IsNil() {
 			alloc := reflect.New(deref(v.Type()))
 			v.Set(alloc)
@@ -67,7 +78,7 @@ func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
 }
 
 // fieldsByTraversal TMP:rewrite: fills traversal entries into a slice of models (values) based on traversal indexes
-func fieldsByTraversal(v reflect.Value, traversals []traversal, values []interface{}, ptrs bool) error {
+func fieldsByTraversal(v reflect.Value, traversals []*traversal, values []interface{}, ptrs bool) error {
 	v = reflect.Indirect(v)
 	if v.Kind() != reflect.Struct {
 		return errors.New("argument not a struct")
@@ -86,4 +97,25 @@ func fieldsByTraversal(v reflect.Value, traversals []traversal, values []interfa
 		}
 	}
 	return nil
+}
+
+// mergeFields merges a struct's field's slice values into another one
+func mergeFields(dst, src reflect.Value) (reflect.Value, error) {
+	dst = reflect.Indirect(dst)
+	src = reflect.Indirect(src)
+	if dst.Kind() != reflect.Struct {
+		return dst, errors.New("dst is not a struct")
+	}
+	if src.Type() != dst.Type() {
+		return dst, errors.New("src is not of the same type")
+	}
+	for idx := 0; idx < dst.NumField(); idx++ {
+		dstField := dst.Field(idx)
+		srcField := src.Field(idx)
+		if dstField.Kind() == reflect.Slice && dstField.Type().Elem() == srcField.Type().Elem() {
+			dstField.Set(reflect.AppendSlice(dstField, srcField))
+		}
+	}
+
+	return dst, nil
 }

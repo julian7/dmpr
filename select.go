@@ -86,8 +86,16 @@ func (q *SelectQuery) All() error {
 	if err != nil {
 		return errors.Wrap(err, "SelectAll traversal")
 	}
-
+	indexindex := -1
+	for idx := range columns {
+		if columns[idx] == "id" {
+			indexindex = idx
+			break
+		}
+	}
 	values := make([]interface{}, len(columns))
+	index := map[int]int{}
+	rowNum := 0
 	for rows.Next() {
 		vp := reflect.New(t)
 		v := reflect.Indirect(vp)
@@ -100,7 +108,22 @@ func (q *SelectQuery) All() error {
 		if err != nil {
 			return errors.Wrap(err, "SelectAll scan")
 		}
+		if indexindex >= 0 {
+			thisid, ok := values[indexindex].(*int)
+			if ok {
+				if otherRow, ok := index[*thisid]; ok {
+					updatedRow, err := mergeFields(value.Index(otherRow), v)
+					if err != nil {
+						return errors.Wrap(err, "SelectAll merging fields")
+					}
+					value.Index(otherRow).Set(updatedRow)
+					continue
+				}
+				index[*thisid] = rowNum
+			}
+		}
 		value.Set(reflect.Append(value, v))
+		rowNum++
 	}
 	return rows.Err()
 }

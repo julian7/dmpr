@@ -18,11 +18,12 @@ type FieldList struct {
 // FieldListItem is a line item of a model's field list
 type FieldListItem struct {
 	reflect.Type
-	Field   reflect.StructField
-	Index   []int
-	Name    string
-	Options map[string]string
-	Path    string
+	Field     reflect.StructField
+	Index     []int
+	Name      string
+	Options   map[string]string
+	Path      string
+	Traversed bool
 }
 
 // TypeMap returns a map of types in the form of a StructMap, from the original model's type
@@ -57,12 +58,13 @@ func (m *Mapper) TypeMap(t reflect.Type) *FieldList {
 		}
 		fieldStruct := t.FieldByIndex(fi.Index)
 		fieldList.Fields = append(fieldList.Fields, FieldListItem{
-			Field:   fieldStruct,
-			Index:   fi.Index,
-			Name:    fi.Name,
-			Options: fi.Options,
-			Path:    fi.Path,
-			Type:    fieldStruct.Type,
+			Field:     fieldStruct,
+			Index:     fi.Index,
+			Name:      fi.Name,
+			Options:   fi.Options,
+			Path:      strings.ReplaceAll(fi.Path, ".", "_"),
+			Traversed: false,
+			Type:      fieldStruct.Type,
 		})
 	}
 	return fieldList
@@ -143,7 +145,7 @@ func (fl *FieldList) HasNFieldsFor(relation, tableref, relindex string, t reflec
 	if len(fl.Joins) == 0 {
 		fl.Joins = map[string]*FieldList{}
 	}
-	fl.Joins[relindex] = flSub
+	fl.Joins[relation] = flSub
 	selected := make([]string, 0, len(fields))
 	for _, field := range fields {
 		selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, field.key, relation, field.key))
@@ -152,38 +154,52 @@ func (fl *FieldList) HasNFieldsFor(relation, tableref, relindex string, t reflec
 }
 
 // TraversalsByName provides a traversal index for SELECT query results, to map result rows' columns with model's entry positions
-func (fl *FieldList) TraversalsByName(columns []string) ([]traversal, error) {
-	fields := make([]traversal, len(columns))
-	toDo := make([]int, 0, len(columns))
+func (fl *FieldList) TraversalsByName(columns []string) ([]*traversal, error) {
+	fields := make([]*traversal, len(columns))
 	for idx := range columns {
-		toDo = append(toDo, idx)
+		trav, err := fl.TraversalByName(columns[idx])
+		if err != nil {
+			return nil, err
+		}
+		fields[idx] = trav
 	}
-	for _, fi := range fl.Fields {
-		for num, idx := range toDo {
-			if fi.Path == columns[idx] ||
-				strings.Replace(fi.Path, ".", "_", 1) == columns[idx] {
-				fields[idx] = traversal{name: columns[idx], index: fi.Index}
-				if relation, ok := fi.Options[OptRelatedTo]; ok {
-					for _, item := range fl.Fields {
-						if item.Name == relation {
-							fields[idx].relation = item.Field
-							break
-						}
+	return fields, nil
+}
+
+func (fl *FieldList) TraversalByName(column string) (*traversal, error) {
+	subcol := strings.SplitN(column, "_", 2)
+	for idx, fi := range fl.Fields {
+		if fi.Traversed {
+			continue
+		}
+		if fi.Path == column {
+			fl.Fields[idx].Traversed = true
+			trav := &traversal{name: column, index: fi.Index}
+			if relation, ok := fi.Options[OptRelatedTo]; ok {
+				for _, item := range fl.Fields {
+					if item.Name == relation {
+						trav.relation = item.Field
 					}
 				}
-				toDo = append(toDo[0:num], toDo[num+1:]...)
-				break
+			}
+			return trav, nil
+		}
+		if fi.Path == subcol[0] {
+			otherfl, ok := fl.Joins[subcol[0]]
+			if len(subcol) > 1 && ok {
+				trav, err := otherfl.TraversalByName(subcol[1])
+				if err != nil {
+					continue
+				}
+				trav.name = column
+				oldidx := make([]int, len(fi.Index))
+				copy(oldidx, fi.Index)
+				trav.index = append(oldidx, trav.index...)
+				return trav, nil
 			}
 		}
 	}
-	if len(toDo) > 0 {
-		cols := make([]string, len(toDo))
-		for id, idx := range toDo {
-			cols[id] = columns[idx]
-		}
-		return nil, errors.Errorf("unable to locate columns in model struct: %s", strings.Join(cols, ", "))
-	}
-	return fields, nil
+	return nil, errors.Errorf("can't find column %q in model struct", column)
 }
 
 // QField returns a query field based on a FieldListItem
