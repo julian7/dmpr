@@ -12,6 +12,7 @@ import (
 type FieldList struct {
 	Fields []FieldListItem
 	Type   reflect.Type
+	Joins  map[string]*FieldList
 }
 
 // FieldListItem is a line item of a model's field list
@@ -30,6 +31,7 @@ func (m *Mapper) TypeMap(t reflect.Type) *FieldList {
 		m.logger.Warnf("cannot get type map of %+v: %v", t, err)
 		return nil
 	}
+	t = deref(t)
 	fieldList := &FieldList{Type: t}
 	fl := m.Conn.Mapper.TypeMap(t).Index
 	related := []string{}
@@ -89,7 +91,7 @@ func (fl *FieldList) RelatedFieldsFor(relation, tableref string, cb func(reflect
 	for _, field := range fl.Fields {
 		if field.Path == relation {
 			if subfield, ok := field.Options[OptRelation]; ok {
-				return HasNFieldsFor(relation, tableref, subfield, field.Type, cb)
+				return fl.HasNFieldsFor(relation, tableref, subfield, field.Type, cb)
 			}
 			tablename, err := tableNameByType(field.Type)
 			if err != nil {
@@ -123,7 +125,7 @@ FieldScan:
 
 // HasNFieldsFor queries related model to build JOIN and SELECTs query substrings SQL query buildders can use directly.
 // It uses a callback, which can provide a *FieldList from the referenced type.
-func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *FieldList) (string, []string, error) {
+func (fl *FieldList) HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *FieldList) (string, []string, error) {
 	t = deref(t)
 	if t.Kind() == reflect.Slice {
 		t = t.Elem()
@@ -133,11 +135,15 @@ func HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapp
 		return "", nil, err
 	}
 	joined := fmt.Sprintf("%s %s ON (t1.id=%s.%s_id)", tablename, tableref, tableref, relindex)
-	fields, err := typeMapper(t).FieldsFor()
+	flSub := typeMapper(t)
+	fields, err := flSub.FieldsFor()
 	if err != nil {
 		return "", nil, err
 	}
-
+	if len(fl.Joins) == 0 {
+		fl.Joins = map[string]*FieldList{}
+	}
+	fl.Joins[relindex] = flSub
 	selected := make([]string, 0, len(fields))
 	for _, field := range fields {
 		selected = append(selected, fmt.Sprintf("%s.%s AS %s_%s", tableref, field.key, relation, field.key))

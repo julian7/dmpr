@@ -110,11 +110,32 @@ func (q *SelectQuery) allSelector(fl *FieldList) (string, []interface{}, error) 
 	if err != nil {
 		return "", nil, err
 	}
-	selected, joined, err := q.getSelect(fl)
-	if err != nil {
-		return "", nil, err
+	var selected []string
+	joined := []string{table + " t1"}
+	if len(q.sel) >= 1 {
+		selected = q.sel
+	} else {
+		fields, err := fl.FieldsFor()
+		if err != nil {
+			return "", nil, err
+		}
+		for _, item := range fields {
+			selected = append(selected, "t1."+item.key)
+		}
+
+		if len(q.incl) > 0 {
+			j, s, err := handleJoins(fl, q.incl, func(ref, tableref string) (string, []string, error) {
+				return fl.RelatedFieldsFor(ref, tableref, func(t reflect.Type) *FieldList {
+					return q.mapper.TypeMap(t)
+				})
+			})
+			if err != nil {
+				return "", nil, err
+			}
+			joined = append(joined, j...)
+			selected = append(selected, s...)
+		}
 	}
-	joined = append([]string{table + " t1"}, joined...)
 	whereClause := ""
 	args := []interface{}{}
 	if q.where != nil {
@@ -132,32 +153,16 @@ func (q *SelectQuery) allSelector(fl *FieldList) (string, []interface{}, error) 
 	), args, nil
 }
 
-func (q *SelectQuery) getSelect(fl *FieldList) ([]string, []string, error) {
-	var selected []string
-	var joined []string
-	if len(q.sel) >= 1 {
-		return q.sel, joined, nil
-	}
-	fields, err := fl.FieldsFor()
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, item := range fields {
-		selected = append(selected, "t1."+item.key)
-	}
-
-	if len(q.incl) > 0 {
-		for idx, incl := range q.incl {
-			tableref := fmt.Sprintf("t%d", idx+2)
-			joining, selecting, err := fl.RelatedFieldsFor(incl, tableref, func(t reflect.Type) *FieldList {
-				return q.mapper.TypeMap(t)
-			})
-			if err != nil {
-				return nil, joined, err
-			}
-			joined = append(joined, joining)
-			selected = append(selected, selecting...)
+func handleJoins(fl *FieldList, joins []string, fielder func(string, string) (string, []string, error)) ([]string, []string, error) {
+	var joined, selected []string
+	for idx, incl := range joins {
+		tableref := fmt.Sprintf("t%d", idx+2)
+		joining, selecting, err := fielder(incl, tableref)
+		if err != nil {
+			return nil, nil, err
 		}
+		joined = append(joined, joining)
+		selected = append(selected, selecting...)
 	}
-	return selected, joined, nil
+	return joined, selected, nil
 }
