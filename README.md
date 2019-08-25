@@ -4,7 +4,7 @@ This database mapper is written for sqlx database library, mainly supporting pos
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/julian7/dmpr)](https://goreportcard.com/report/github.com/julian7/dmpr)
 [![GoDoc](https://godoc.org/github.com/julian7/dmpr?status.svg)](https://godoc.org/github.com/julian7/dmpr)
-[![Releases](https://img.shields.io/github/release/julian7/dmpr/all.svg?style=flat-square)](https://github.com/julian7/dmpr/releases)
+[![Releases](https://img.shields.io/github/release/julian7/dmpr/all.svg)](https://github.com/julian7/dmpr/releases)
 
 ## In Scope
 
