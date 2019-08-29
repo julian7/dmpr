@@ -36,6 +36,17 @@ type ExampleHasMany struct {
 	Belongs []*ExampleBelongsTo `db:"belongs,relation=many"`
 }
 
+type ExampleManyToMany struct {
+	ID     int
+	Name   string
+	Others []*ExampleManyToManyOther `db:"others,relation=other,reverse=many,through=manytomany_others"`
+}
+
+type ExampleManyToManyOther struct {
+	ID   int
+	Name string
+}
+
 func TestSelectQuery_All(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -169,6 +180,38 @@ func TestSelectQuery_All(t *testing.T) {
 							Name:   "subname2",
 							OneID:  0,
 							MoreID: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "many to many",
+			model: &[]ExampleManyToMany{},
+			prep:  func(s *dmpr.SelectQuery) { s.Join("others") },
+			mock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "name", "others_id", "others_name"}).
+					AddRow(1, "test", 2, "subname").
+					AddRow(1, "test", 3, "subname2")
+				mock.ExpectQuery(fmt.Sprintf("^%s", regexp.QuoteMeta(
+					`SELECT t1.id, t1.name, t2.id AS others_id, t2.name AS others_name `+
+						`FROM example_many_to_manies t1 `+
+						`LEFT JOIN manytomany_others tt2 ON (t1.id=tt2.other_id) `+
+						`LEFT JOIN example_many_to_many_others t2 ON (t2.id=tt2.many_id)`,
+				))).WillReturnRows(rows)
+			},
+			expected: &[]ExampleManyToMany{
+				{
+					ID:   1,
+					Name: "test",
+					Others: []*ExampleManyToManyOther{
+						{
+							ID:   2,
+							Name: "subname",
+						},
+						{
+							ID:   3,
+							Name: "subname2",
 						},
 					},
 				},

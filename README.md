@@ -122,6 +122,63 @@ type UserGroup struct {
     ListID  int     `db:"list_id"`
     Name    string
 }
+
+toDoLists := &[]ToDoList{}
+query, err := dmpr.NewSelect(users)
+if err != nil {
+    panic(err)
+}
+query.Join("to_do_items").All()
+```
+
+## Many to many
+
+A "many to many" relation represents an _n:m_ relationship, with an anonymous linking table:
+
+```sql
+CREATE TABLE users (
+    id SERIAL,
+    name VARCHAR(32)
+);
+
+CREATE TABLE groups (
+    id SERIAL,
+    name VARCHAR(32)
+);
+
+CREATE TABLE user_groups (
+    user_id INT,
+    group_id INT
+);
+
+SELECT t1.id, t1.name, t2.id AS group_id, t2.name AS group_name
+FROM users t1
+LEFT JOIN user_groups tt2 ON (t1.id=tt2.user_id)
+LEFT JOIN groups t2 ON (t2.id=tt2.group_id);
+```
+
+It is more compact in go:
+
+```go
+type User struct {
+    ID   int
+    Name string
+    Groups []Group `db:groups,relation=user,reverse=group,through=user_groups"`
+}
+
+type Group struct {
+    ID int
+    Name string
+    Users []*User `db:users,relation=group,reverse=user,through=user_groups"`
+}
+
+users := &[]User{}
+query, err := dmpr.NewSelect(users)
+if err != nil {
+    panic(err)
+}
+query.Join("groups").All()
+
 ```
 
 ## Operators

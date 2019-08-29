@@ -89,25 +89,25 @@ FieldsForLoop:
 }
 
 // RelatedFieldsFor converts FieldListItems to JOINs and SELECTs SQL query builders can use directly
-func (fl *FieldList) RelatedFieldsFor(relation, tableref string, cb func(reflect.Type) *FieldList) (joins string, selects []string, err error) {
+func (fl *FieldList) RelatedFieldsFor(relation, tableref string, cb func(reflect.Type) *FieldList) (joins []string, selects []string, err error) {
 	for _, field := range fl.Fields {
 		if field.Path == relation {
-			if subfield, ok := field.Options[OptRelation]; ok {
-				return fl.HasNFieldsFor(relation, tableref, subfield, field.Type, cb)
+			if _, ok := field.Options[OptRelation]; ok {
+				return fl.HasNFieldsFor(relation, tableref, field, cb)
 			}
 			tablename, err := tableNameByType(field.Type)
 			if err != nil {
-				return "", nil, err
+				return nil, nil, err
 			}
 			return fl.BelongsToFieldsFor(relation, tableref, tablename)
 		}
 	}
-	return "", nil, errors.Errorf("Relation %q not found", relation)
+	return nil, nil, errors.Errorf("Relation %q not found", relation)
 }
 
 // BelongsToFieldsFor converts FieldListItems to JOIN and SELECTs query substrings SQL query buildders can use directly
-func (fl *FieldList) BelongsToFieldsFor(relation, tableref, tablename string) (string, []string, error) {
-	joined := fmt.Sprintf("%s %s ON (t1.%s_id=%s.id)", tablename, tableref, relation, tableref)
+func (fl *FieldList) BelongsToFieldsFor(relation, tableref, tablename string) ([]string, []string, error) {
+	joined := []string{fmt.Sprintf("%s %s ON (t1.%s_id=%s.id)", tablename, tableref, relation, tableref)}
 	selected := []string{}
 	rel := len(relation) + 1
 FieldScan:
@@ -127,20 +127,32 @@ FieldScan:
 
 // HasNFieldsFor queries related model to build JOIN and SELECTs query substrings SQL query buildders can use directly.
 // It uses a callback, which can provide a *FieldList from the referenced type.
-func (fl *FieldList) HasNFieldsFor(relation, tableref, relindex string, t reflect.Type, typeMapper func(reflect.Type) *FieldList) (string, []string, error) {
-	t = deref(t)
+func (fl *FieldList) HasNFieldsFor(relation, tableref string, field FieldListItem, typeMapper func(reflect.Type) *FieldList) ([]string, []string, error) {
+	var joined []string
+	t := deref(field.Type)
 	if t.Kind() == reflect.Slice {
 		t = t.Elem()
 	}
 	tablename, err := tableNameByType(t)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
-	joined := fmt.Sprintf("%s %s ON (t1.id=%s.%s_id)", tablename, tableref, tableref, relindex)
+	relindex, _ := field.Options[OptRelation]
+	revindex, hasRevIndex := field.Options[OptReverse]
+	throughTable, hasThrough := field.Options[OptThrough]
+	if hasRevIndex && hasThrough {
+		joined = append(
+			joined,
+			fmt.Sprintf("%s t%s ON (t1.id=t%s.%s_id)", throughTable, tableref, tableref, relindex),
+			fmt.Sprintf("%s %s ON (%s.id=t%s.%s_id)", tablename, tableref, tableref, tableref, revindex),
+		)
+	} else {
+		joined = append(joined, fmt.Sprintf("%s %s ON (t1.id=%s.%s_id)", tablename, tableref, tableref, relindex))
+	}
 	flSub := typeMapper(t)
 	fields, err := flSub.FieldsFor()
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 	if len(fl.Joins) == 0 {
 		fl.Joins = map[string]*FieldList{}

@@ -147,7 +147,7 @@ func (q *SelectQuery) allSelector(fl *FieldList) (string, []interface{}, error) 
 		}
 
 		if len(q.incl) > 0 {
-			j, s, err := handleJoins(fl, q.incl, func(ref, tableref string) (string, []string, error) {
+			j, s, err := handleJoins(fl, q.incl, func(ref, tableref string) ([]string, []string, error) {
 				return fl.RelatedFieldsFor(ref, tableref, func(t reflect.Type) *FieldList {
 					return q.mapper.TypeMap(t)
 				})
@@ -176,7 +176,7 @@ func (q *SelectQuery) allSelector(fl *FieldList) (string, []interface{}, error) 
 	), args, nil
 }
 
-func handleJoins(fl *FieldList, joins []string, fielder func(string, string) (string, []string, error)) ([]string, []string, error) {
+func handleJoins(fl *FieldList, joins []string, fielder func(string, string) ([]string, []string, error)) ([]string, []string, error) {
 	var joined, selected []string
 	for idx, incl := range joins {
 		tableref := fmt.Sprintf("t%d", idx+2)
@@ -184,7 +184,7 @@ func handleJoins(fl *FieldList, joins []string, fielder func(string, string) (st
 		if err != nil {
 			return nil, nil, err
 		}
-		joined = append(joined, joining)
+		joined = append(joined, joining...)
 		selected = append(selected, selecting...)
 	}
 	return joined, selected, nil

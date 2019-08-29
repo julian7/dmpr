@@ -14,8 +14,25 @@ const (
 	OptUnrelated = "_unrelated_"
 	// OptBelongs is a struct tag option marking a "belongs-to" relation.
 	OptBelongs = "belongs"
-	// OptRelation is a struct tag option marking a "has-one" or "has-many" relation.
+	// OptRelation is a struct tag option marking a "has-one", "has-many", or a "many-to-many" relation, containing the other end's ref stub for the struct's ID.
+	//
+	// Example tag: `db:"posts,relation=author"`: you can reference this join as `posts`, and the other end will have a field called `author_id` to reference this table.
 	OptRelation = "relation"
+	// OptReverse is a struct tag option marking a "many-to-many" relation,
+	// containing the stub how the other end is referenced in the linker table (see OptThrough).
+	// OptReverse is taken into consideration only if OptRelation and OptThrough
+	// are provided.
+	//
+	// Example tag: `db:"groups,relation=user,reverse=group,through=user_groups"`:
+	// you can reference this join as `groups`, and there must be a `user_groups`
+	// table with a `user_id` and a `group_id` field. `user_id` references to this
+	// table, `group_id` references to the joined table.
+	OptReverse = "reverse"
+	// OptThrough is a struct tag option marking a "many-to-many" relation,
+	// containing the linker table's name. See OptReverse for an example.
+	// OptThrough is taken into consideration only if OptRelation and OptReverse
+	// are also provided.
+	OptThrough = "through"
 )
 
 type queryField struct {
