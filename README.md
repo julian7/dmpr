@@ -13,7 +13,7 @@ This database mapper is written for sqlx database library, mainly supporting pos
 * provides health report on the connection
 * provides basic query functionality on top of sqlx for logging purposes
 * provides basic model query functionality (Find, FindBy, All, Create, Update, Delete)
-* provides basic "belongs to", "has one", and "has many" relationships (NewSelect)
+* provides basic "belongs to", "has one", "has many", and "many to many" relationships (NewSelect)
 
 ## Out of Scope
 
