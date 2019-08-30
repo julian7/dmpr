@@ -100,12 +100,10 @@ func (q *SelectQuery) All() error {
 		vp := reflect.New(t)
 		v := reflect.Indirect(vp)
 
-		err = fieldsByTraversal(v, fields, values, true)
-		if err != nil {
+		if err := mapFieldsByTraversal(v, fields, values); err != nil {
 			return errors.Wrap(err, "SelectAll traversal")
 		}
-		err = rows.Scan(values...)
-		if err != nil {
+		if err := rows.Scan(values...); err != nil {
 			return errors.Wrap(err, "SelectAll scan")
 		}
 		if indexindex >= 0 {

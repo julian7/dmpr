@@ -68,8 +68,10 @@ type traversal struct {
 	relation reflect.StructField
 }
 
-// fieldsByTraversal TMP:rewrite: fills traversal entries into a slice of models (values) based on traversal indexes
-func fieldsByTraversal(v reflect.Value, traversals []*traversal, values []interface{}, ptrs bool) error {
+// mapFieldsByTraversal creates new empty model struct instance, and fills
+// values slice with pointers to model elements by traversal indexes. This makes
+// sqlx.Scan load rows directly into model instances.
+func mapFieldsByTraversal(v reflect.Value, traversals []*traversal, values []interface{}) error {
 	v = reflect.Indirect(v)
 	if v.Kind() != reflect.Struct {
 		return errors.New("argument not a struct")
@@ -81,11 +83,7 @@ func fieldsByTraversal(v reflect.Value, traversals []*traversal, values []interf
 			continue
 		}
 		f := fieldByIndexes(v, traversal.index)
-		if ptrs {
-			values[i] = f.Addr().Interface()
-		} else {
-			values[i] = f.Interface()
-		}
+		values[i] = f.Addr().Interface()
 	}
 	return nil
 }
