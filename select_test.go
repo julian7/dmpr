@@ -17,11 +17,10 @@ import (
 type ExampleBelongsTo struct {
 	ID     int
 	Name   string
-	Extras null.String      `db:"extras,omitempty"`
-	OneID  int              `db:"one_id"`
-	MoreID int              `db:"more_id"`
-	One    ExampleHasOne    `db:"one,belongs"`
-	More   []ExampleHasMany `db:"many,belongs"`
+	Extras null.String   `db:"extras,omitempty"`
+	OneID  int           `db:"one_id"`
+	MoreID int           `db:"more_id"`
+	One    ExampleHasOne `db:"one,belongs"`
 }
 
 type ExampleHasOne struct {

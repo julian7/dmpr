@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-No changes so far.
+### Added
+
+* Many-to-many relationships
+* More binary operators (lt/gt/le/ge)
+
+### Known bugs
+
+* Has many and many-to-many relations are filled incorrectly if they are referenced as
+  slice of values. Slice of pointers work nicely.
 
 ## [v0.1.0] - Aug 24, 2019
 

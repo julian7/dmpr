@@ -56,6 +56,55 @@ func (op *NULL) Where(truthy bool) string {
 	return op.column + " " + map[bool]string{true: "IS NULL", false: "IS NOT NULL"}[op.value == truthy]
 }
 
+// BINARY implements a 2-parameter operator
+type BINARY struct {
+	ColumnValue
+	TruthyRel string
+	FalsyRel  string
+}
+
+// Returns a 2-parameter operator, with a truthy or falsy operator between
+// column and value
+//
+// Example: BinaryOp("column", 4, ">=", "<") yields `column >= 4` in normal
+// query, or `column < 4` in negated form.
+func BinaryOp(col string, value interface{}, truthy, falsy string) Operator {
+	if value == nil || reflect.ValueOf(value).Kind() == reflect.Invalid {
+		return Null(col, true)
+	}
+	return &BINARY{ColumnValue: ColumnValue{column: col, value: value}, TruthyRel: truthy, FalsyRel: falsy}
+}
+
+// Where implements binary operator's where clause
+func (op *BINARY) Where(truthy bool) string {
+	return fmt.Sprintf(
+		"%s %s :%s",
+		op.Column(),
+		map[bool]string{true: op.TruthyRel, false: op.FalsyRel}[truthy],
+		op.Column(),
+	)
+}
+
+// Lt returns a < operator
+func Lt(col string, value interface{}) Operator {
+	return BinaryOp(col, value, "<", ">=")
+}
+
+// Gt returns a > orperator
+func Gt(col string, value interface{}) Operator {
+	return BinaryOp(col, value, ">", "<=")
+}
+
+// Le returns a <= operator
+func Le(col string, value interface{}) Operator {
+	return BinaryOp(col, value, "<=", ">")
+}
+
+// Ge returns a >= orperator
+func Ge(col string, value interface{}) Operator {
+	return BinaryOp(col, value, ">=", "<")
+}
+
 // EQ implements equivalence Operator. It is based on Column struct.
 type EQ struct {
 	ColumnValue

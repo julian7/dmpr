@@ -34,6 +34,7 @@ Models are structs, and mapper reads their "db" tags for meta-information, just 
   * belongs: represents "belongs_to" relationship. It assumes another field with the same name, but with `_id` suffix.
   * related maps can and should be added to structs. To avoid circular references, use pointers for related structs.
 * References may accept both values or pointers. However, go doesn't accept circular value references. As a simple rule, I'd suggest you to use values at "belongs to", but use pointers at "has one" or "has many" relationships.
+* Known issue: slice of values don't fill well. Use slice of pointers for "has many" and "many to many" relations.
 
 ## Relations
 
@@ -183,24 +184,12 @@ query.Join("groups").All()
 
 ## Operators
 
-There are just a couple of operators implemented, but it's very easy to add more. They work in a way
+There are just a couple of operators implemented, but it's very easy to add more. They work in a way query builder can fetch their columns and their relations too.
 
-### Null operator
-
-`dmpr.Null("column", true)` provides a "column IS NULL" operator. If the second parameter is `false`, then it will provide "column IS NOT NULL" instead.
-
-### Eq operator
-
-`dmpr.Eq(column, value)` provides an equivalence operator, in the form of `column = VALUE` or `column IN (value...)`.
-
-### Not operator
-
-`dmpr.Not(operator)` negates an operator. For example, `dmpr.Not(dmpr.Null("column", true))` returns `colum IS NOT NULL`.
-
-### And operator
-
-`dmpr.And(operator...)` groups other operators together, to provide a single operator with an AND relationship between them.
-
-### Or operator
-
-`dmpr.Or(operator...)` groups other operators together, to provide a single operator with an OR relationship between them.
+* Null operator: `dmpr.Null("column", true)` provides a "column IS NULL" operator. If the second parameter is `false`, then it will provide "column IS NOT NULL" instead.
+* Eq operator: `dmpr.Eq("column", value)` provides an equivalence operator, in the form of `column = VALUE` or `column IN (value...)`.
+* Lt / Gt / Le / Ge operators: they are simple binary operators, implementing "less than," "greater than," "less than or equal," and "greater than or equal" operators.
+  They are similar to `dmpr.Eq(column, value)`, but they cannot handle slices.
+* Not operator: `dmpr.Not(operator)` negates an operator. For example, `dmpr.Not(dmpr.Null("column", true))` returns `colum IS NOT NULL`.
+* And operator: `dmpr.And(operator...)` groups other operators together, to provide a single operator with an AND relationship between them.
+* Or operator: `dmpr.Or(operator...)` groups other operators together, to provide a single operator with an OR relationship between them.
