@@ -51,7 +51,7 @@ func Test_FieldsFor(t *testing.T) {
 				logger: logrus.New(),
 			}
 			typ, _ := Reflect(tt.model)
-			got, err := m.TypeMap(typ).FieldsFor()
+			got, err := m.FieldList(typ).FieldsFor()
 			if assert := tester.AssertError(tt.err, err); assert != nil {
 				t.Error(assert)
 			}

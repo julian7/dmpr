@@ -26,8 +26,8 @@ type FieldListItem struct {
 	Traversed bool
 }
 
-// TypeMap returns a map of types in the form of a StructMap, from the original model's type
-func (m *Mapper) TypeMap(t reflect.Type) *FieldList {
+// FieldList returns a map of types in the form of a StructMap, from the original model's type
+func (m *Mapper) FieldList(t reflect.Type) *FieldList {
 	if err := m.tryOpen(); err != nil {
 		m.logger.Warnf("cannot get type map of %+v: %v", t, err)
 		return nil

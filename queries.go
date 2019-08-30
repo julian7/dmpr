@@ -52,7 +52,7 @@ func (m *Mapper) Create(model interface{}) error {
 		return err
 	}
 	typ, _ := Reflect(model)
-	fields, err := m.TypeMap(typ).FieldsFor()
+	fields, err := m.FieldList(typ).FieldsFor()
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (m *Mapper) Update(model interface{}) error {
 		return err
 	}
 	typ, _ := Reflect(model)
-	fields, err := m.TypeMap(typ).FieldsFor()
+	fields, err := m.FieldList(typ).FieldsFor()
 	if err != nil {
 		return err
 	}

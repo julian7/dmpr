@@ -67,7 +67,7 @@ func (q *SelectQuery) Where(op Operator) *SelectQuery {
 
 func (q *SelectQuery) All() error {
 	t, value := Reflect(q.model)
-	fl := q.mapper.TypeMap(t)
+	fl := q.mapper.FieldList(t)
 
 	query, args, err := q.allSelector(fl)
 	if err != nil {
@@ -149,7 +149,7 @@ func (q *SelectQuery) allSelector(fl *FieldList) (string, []interface{}, error) 
 		if len(q.incl) > 0 {
 			j, s, err := handleJoins(fl, q.incl, func(ref, tableref string) ([]string, []string, error) {
 				return fl.RelatedFieldsFor(ref, tableref, func(t reflect.Type) *FieldList {
-					return q.mapper.TypeMap(t)
+					return q.mapper.FieldList(t)
 				})
 			})
 			if err != nil {
