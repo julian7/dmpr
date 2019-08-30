@@ -68,6 +68,7 @@ type Traversal struct {
 	Relation reflect.StructField
 }
 
+// Traversals is an array of Traversal
 type Traversals []*Traversal
 
 // FieldList returns a map of types in the form of a StructMap, from the original model's type
