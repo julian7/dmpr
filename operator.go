@@ -40,14 +40,18 @@ type NULL struct {
 	ColumnValue
 }
 
+// Null creates a new NULL operator
 func Null(col string, value bool) *NULL {
 	return &NULL{ColumnValue: ColumnValue{column: col, value: value}}
 }
 
+// Values returns NULL operator's values
 func (op *NULL) Values() map[string]interface{} {
 	return map[string]interface{}{op.column: nil}
 }
 
+// Where returns NULL operator's where clause in positive (truthy) or
+// negative (falsy) manner.
 func (op *NULL) Where(truthy bool) string {
 	return op.column + " " + map[bool]string{true: "IS NULL", false: "IS NOT NULL"}[op.value == truthy]
 }
@@ -107,6 +111,8 @@ func (op *NOT) Where(truthy bool) string {
 	return op.Operator.Where(!truthy)
 }
 
+// Grouper interface denotes a group operator, where multiple sub-operators
+// can be added into
 type Grouper interface {
 	Add(...Operator)
 }

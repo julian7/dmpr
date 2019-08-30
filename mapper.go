@@ -21,13 +21,16 @@ type Mapper struct {
 	logger *logrus.Logger
 }
 
-// New sets up a new SQL connection
+// New sets up a new SQL connection. It sets up a "black hole" logger too.
 func New(connString string) *Mapper {
 	logger := logrus.New()
 	logger.SetOutput(ioutil.Discard)
 	return &Mapper{url: connString, logger: logger}
 }
 
+// Open opens connection to the database. It is implicitly called by
+// db calls defined in Mapper, but sometimes it's desirable to make
+// sure the database is available at start time.
 func (m *Mapper) Open() error {
 	connURL, err := url.Parse(m.url)
 	if err != nil {
@@ -51,6 +54,7 @@ func (m *Mapper) tryOpen() error {
 	return m.Open()
 }
 
+// Logger sets up internal log method, replacing the discarding logger.
 func (m *Mapper) Logger(logger *logrus.Logger) {
 	m.logger = logger
 }
@@ -64,11 +68,14 @@ func (m *Mapper) FieldMap(model interface{}) map[string]reflect.Value {
 	return m.Conn.Mapper.FieldMap(indirect(reflect.ValueOf(model)))
 }
 
+// Name returns module name. Used for subsystem health checks.
 func (m *Mapper) Name() string {
 	return "dbmapper"
 }
 
-func (m *Mapper) HealthReport(ctx context.Context) (bool, map[string]string) {
+// HealthReport returns healthy status, or map of issues. Currently,
+// a closed database is reported as an error.
+func (m *Mapper) HealthReport(ctx context.Context) (healthy bool, errors map[string]string) {
 	if m.Conn == nil {
 		return false, map[string]string{"error": "database is closed"}
 	}

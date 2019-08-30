@@ -6,7 +6,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// Exec runs sqlx.Exec, with logging
+// Exec runs sqlx.Exec nicely. It opens database if needed, and logs the query.
 func (m *Mapper) Exec(query string, args ...interface{}) (sql.Result, error) {
 	if err := m.tryOpen(); err != nil {
 		return nil, err
@@ -15,7 +15,7 @@ func (m *Mapper) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return m.Conn.Exec(query, args...)
 }
 
-// NamedExec runs sqlx.NamedExec, with logging
+// NamedExec runs sqlx.NamedExec nicely. It opens database if needed, and logs the query.
 func (m *Mapper) NamedExec(query string, arg interface{}) (sql.Result, error) {
 	if err := m.tryOpen(); err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func (m *Mapper) NamedExec(query string, arg interface{}) (sql.Result, error) {
 	return m.Conn.NamedExec(query, arg)
 }
 
-// NamedQuery runs sqlx.NamedQuery, with logging
+// NamedQuery runs sqlx.NamedQuery nicely. It opens database if needed, and logs the query.
 func (m *Mapper) NamedQuery(query string, arg interface{}) (*sqlx.Rows, error) {
 	if err := m.tryOpen(); err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (m *Mapper) NamedQuery(query string, arg interface{}) (*sqlx.Rows, error) {
 	return m.Conn.NamedQuery(query, arg)
 }
 
-// Get runs sqlx.Get, with logging
+// Get runs sqlx.Get nicely. It opens database if needed, and logs the query.
 func (m *Mapper) Get(dest interface{}, query string, args ...interface{}) error {
 	if err := m.tryOpen(); err != nil {
 		return err
@@ -42,7 +42,7 @@ func (m *Mapper) Get(dest interface{}, query string, args ...interface{}) error 
 	return m.Conn.Get(dest, query, args...)
 }
 
-// Select runs sqlx.Select, with logging
+// Select runs sqlx.Select nicely. It opens database if needed, and logs the query.
 func (m *Mapper) Select(dest interface{}, query string, args ...interface{}) error {
 	if err := m.tryOpen(); err != nil {
 		return err
@@ -51,7 +51,7 @@ func (m *Mapper) Select(dest interface{}, query string, args ...interface{}) err
 	return m.Conn.Select(dest, query, args...)
 }
 
-// Queryx runs sqlx.Queryx, with logging
+// Queryx runs sqlx.Queryx nicely. It opens database if needed, and logs the query.
 func (m *Mapper) Queryx(query string, args ...interface{}) (*sqlx.Rows, error) {
 	if err := m.tryOpen(); err != nil {
 		return nil, err
