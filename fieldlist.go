@@ -54,7 +54,8 @@ type FieldListItem struct {
 	Traversed bool
 }
 
-type queryField struct {
+// QueryField is a conversion struct for building INSERT or UPDATE queries
+type QueryField struct {
 	key  string
 	val  string
 	eq   string
@@ -116,8 +117,8 @@ func (m *Mapper) FieldList(t reflect.Type) *FieldList {
 }
 
 // FieldsFor converts FieldListItems to query fields SQL query builders can use. It doesn't include related fields.
-func (fl *FieldList) FieldsFor() ([]queryField, error) {
-	queryFields := make([]queryField, 0, len(fl.Fields))
+func (fl *FieldList) FieldsFor() ([]QueryField, error) {
+	queryFields := make([]QueryField, 0, len(fl.Fields))
 FieldsForLoop:
 	for _, fi := range fl.Fields {
 		for _, item := range []string{OptRelatedTo, OptUnrelated} {
@@ -266,7 +267,7 @@ func (fl *FieldList) traversalByName(column, prefix string, parentIndex []int) *
 }
 
 // QField returns a query field based on a FieldListItem
-func (fi FieldListItem) QField() *queryField {
+func (fi FieldListItem) QField() *QueryField {
 	val := ":" + fi.Path
 	for _, opt := range []string{"relation", "belongs"} {
 		_, ok := fi.Options[opt]
@@ -274,12 +275,12 @@ func (fi FieldListItem) QField() *queryField {
 			return nil
 		}
 	}
-	field := &queryField{}
-	field.key = fi.Path
-	field.opts = fi.Options
-	field.val = val
-	field.eq = fi.Path + "=" + val
-	return field
+	return &QueryField{
+		key:  fi.Path,
+		opts: fi.Options,
+		val:  val,
+		eq:   fmt.Sprintf("%s=%s", fi.Path, val),
+	}
 }
 
 // Map creates new empty model struct instance, and fills values slice with

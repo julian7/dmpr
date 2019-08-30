@@ -24,13 +24,13 @@ func Test_FieldsFor(t *testing.T) {
 	tests := []struct {
 		name     string
 		model    interface{}
-		expected []queryField
+		expected []QueryField
 		err      error
 	}{
 		{
 			name:  "empty model",
 			model: &ExampleFieldsForModel{},
-			expected: []queryField{
+			expected: []QueryField{
 				{key: "id", val: ":id", eq: "id=:id"},
 				{key: "name", val: ":name", eq: "name=:name", opts: omitempty},
 				{key: "extra", val: ":extra", eq: "extra=:extra", opts: omitempty},

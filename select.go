@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// SelectQuery represent a new SELECT query builder
 type SelectQuery struct {
 	mapper *Mapper
 	model  interface{}
@@ -16,6 +17,7 @@ type SelectQuery struct {
 	where  Operator
 }
 
+// NewSelect returns a new SelectQuery with the provided model attached
 func (m *Mapper) NewSelect(model interface{}) (*SelectQuery, error) {
 	_, err := tableName(model)
 	if err != nil {
@@ -40,6 +42,8 @@ func (m *Mapper) NewSelect(model interface{}) (*SelectQuery, error) {
 	}, nil
 }
 
+// Select sets columns to be selected into model. By default, all fields
+// in the model and its joined relations are populated.
 func (q *SelectQuery) Select(selectors ...string) *SelectQuery {
 	if len(q.sel) < 1 {
 		q.sel = make([]string, 0, len(selectors))
@@ -48,6 +52,31 @@ func (q *SelectQuery) Select(selectors ...string) *SelectQuery {
 	return q
 }
 
+// Join prepares query for joining tables, which will populate referenced
+// submodels. This supports "has one," "has many," and "many to many"
+// relations. Parameters have to reference db field names, which are also
+// some sort of relations. Examples:
+//
+// ```golang
+// type Table struct {
+//     ID           int
+//     WeBelongToID int             `db:"we_belong_to_id"`
+//     WeBelongTo   TableWeBelongTo `db:"we_belong_to,belongs"`
+//     HasOne       OtherTable      `db:"has_one,relation=table"`
+//     HasMany      []*ManyTable    `db:"has_many,relation=table"`
+//     ManyToMany   []*M2MTable     `db:"many_to_many,relation=table,reverse=mtm,through=table_m2ms"`
+// }
+// ```
+//
+// represents four join possibilities: "we_belong_to," "has_one," and "has_many."
+// In the first example, we expect the other item's ID stored with the name of
+// the relation + "_id" ("we_belong_to_id"), In the other two examples, we
+// expect our ID to be stored at the other end with the name of the value of
+// "relation" optional tag + "_id" ("table_id").
+// In the last example, we also expect that the relation is set up in
+// "table_m2ms" table, and it also has a has many relationship with M2MTable,
+// referencing its ID as "reverse" optional tag + "_id" ("mtm_id") in
+// the "through" table ("table_m2ms") too.
 func (q *SelectQuery) Join(selectors ...string) *SelectQuery {
 	if len(q.incl) < 1 {
 		q.incl = make([]string, 0, len(selectors))
@@ -56,6 +85,8 @@ func (q *SelectQuery) Join(selectors ...string) *SelectQuery {
 	return q
 }
 
+// Where sets where clauses to the SELECT query, using Operator interface.
+// Calling it multiple times will yield an AND relationship among operators.
 func (q *SelectQuery) Where(op Operator) *SelectQuery {
 	if q.where != nil {
 		q.where = And(q.where, op)
@@ -65,6 +96,9 @@ func (q *SelectQuery) Where(op Operator) *SelectQuery {
 	return q
 }
 
+// All executes SELECT query, returning all the items selected. This call
+// evaluates provided parameters, builds SQL query, and populates model
+// slice the SelectQuery is created with.
 func (q *SelectQuery) All() error {
 	t, value := Reflect(q.model)
 	fl := q.mapper.FieldList(t)

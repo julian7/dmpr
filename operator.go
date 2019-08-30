@@ -30,7 +30,7 @@ func (c *ColumnValue) Keys() []string {
 	return []string{c.column}
 }
 
-// Value returns the object's value
+// Values returns the object's value
 func (c *ColumnValue) Values() map[string]interface{} {
 	return map[string]interface{}{c.column: c.value}
 }
@@ -63,8 +63,8 @@ type BINARY struct {
 	FalsyRel  string
 }
 
-// Returns a 2-parameter operator, with a truthy or falsy operator between
-// column and value
+// BinaryOp Returns a 2-parameter operator, with a truthy or falsy operator
+// between column and value
 //
 // Example: BinaryOp("column", 4, ">=", "<") yields `column >= 4` in normal
 // query, or `column < 4` in negated form.
@@ -191,7 +191,7 @@ func (op *GroupOperator) Keys() []string {
 	return keys
 }
 
-// Value returns all the values found in its sub-operators
+// Values returns all the values found in its sub-operators
 func (op *GroupOperator) Values() map[string]interface{} {
 	values := map[string]interface{}{}
 	for _, item := range op.items {
@@ -261,7 +261,7 @@ type OR struct {
 	*GroupOperator
 }
 
-// And returns a new OR operator with initial values
+// Or returns a new OR operator with initial values
 func Or(ops ...Operator) *OR {
 	op := &OR{GroupOperator: NewGroupOp("OR", []Operator{}...)}
 	op.Add(ops...)
