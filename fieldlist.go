@@ -129,6 +129,14 @@ FieldScan:
 // It uses a callback, which can provide a *FieldList from the referenced type.
 func (fl *FieldList) HasNFieldsFor(relation, tableref string, field FieldListItem, typeMapper func(reflect.Type) *FieldList) ([]string, []string, error) {
 	var joined []string
+	relindex, hasRelIndex := field.Options[OptRelation]
+	revindex, hasRevIndex := field.Options[OptReverse]
+	throughTable, hasThrough := field.Options[OptThrough]
+
+	if !hasRelIndex {
+		return nil, nil, errors.New("not a relation")
+	}
+
 	t := deref(field.Type)
 	if t.Kind() == reflect.Slice {
 		t = t.Elem()
@@ -137,9 +145,6 @@ func (fl *FieldList) HasNFieldsFor(relation, tableref string, field FieldListIte
 	if err != nil {
 		return nil, nil, err
 	}
-	relindex, _ := field.Options[OptRelation]
-	revindex, hasRevIndex := field.Options[OptReverse]
-	throughTable, hasThrough := field.Options[OptThrough]
 	if hasRevIndex && hasThrough {
 		joined = append(
 			joined,
