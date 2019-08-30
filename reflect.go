@@ -57,6 +57,44 @@ func tableNameByType(t reflect.Type) (string, error) {
 	return flect.Pluralize(modelName), nil
 }
 
+// fieldByIndexes dials in to a value by index #s, returning the value inside. It allocates pointers and maps when needed.
+func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
+	for _, i := range indexes {
+		v = reflect.Indirect(v)
+		if v.Kind() == reflect.Slice {
+			v = dialSubindex(v)
+		}
+		v = indirect(v)
+		v = v.Field(i)
+		if v.Kind() == reflect.Ptr && v.IsNil() {
+			alloc := reflect.New(deref(v.Type()))
+			v.Set(alloc)
+		}
+		if v.Kind() == reflect.Map && v.IsNil() {
+			v.Set(reflect.MakeMap(v.Type()))
+		}
+	}
+	return v
+}
+
+func dialSubindex(v reflect.Value) reflect.Value {
+	if v.Len() > 0 {
+		v = indirect(v.Index(0))
+	} else {
+		t := v.Type().Elem()
+		if t.Kind() == reflect.Ptr {
+			newVal := reflect.New(deref(t))
+			v.Set(reflect.Append(v, newVal))
+			v = reflect.Indirect(newVal)
+		} else {
+			newVal := reflect.New(t)
+			v.Set(reflect.Append(v, newVal.Elem()))
+			v = newVal
+		}
+	}
+	return v
+}
+
 // copied from stdlib's encoding/json/encode.go, added driver.Valuer handling
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {

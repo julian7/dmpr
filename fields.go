@@ -68,32 +68,6 @@ type traversal struct {
 	relation reflect.StructField
 }
 
-// fieldByIndexes dials in to a value by index #s, returning the value inside. It allocates pointers and maps when needed.
-func fieldByIndexes(v reflect.Value, indexes []int) reflect.Value {
-	for _, i := range indexes {
-		v = reflect.Indirect(v)
-		if v.Kind() == reflect.Slice {
-			if v.Len() > 0 {
-				v = indirect(v.Index(0))
-			} else {
-				t := v.Type().Elem()
-				newVal := reflect.New(deref(t))
-				v.Set(reflect.Append(v, newVal))
-				v = reflect.Indirect(newVal)
-			}
-		}
-		v = v.Field(i)
-		if v.Kind() == reflect.Ptr && v.IsNil() {
-			alloc := reflect.New(deref(v.Type()))
-			v.Set(alloc)
-		}
-		if v.Kind() == reflect.Map && v.IsNil() {
-			v.Set(reflect.MakeMap(v.Type()))
-		}
-	}
-	return v
-}
-
 // fieldsByTraversal TMP:rewrite: fills traversal entries into a slice of models (values) based on traversal indexes
 func fieldsByTraversal(v reflect.Value, traversals []*traversal, values []interface{}, ptrs bool) error {
 	v = reflect.Indirect(v)
