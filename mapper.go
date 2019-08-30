@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"reflect"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
@@ -52,6 +53,15 @@ func (m *Mapper) tryOpen() error {
 
 func (m *Mapper) Logger(logger *logrus.Logger) {
 	m.logger = logger
+}
+
+// FieldMap returns a map of fields for a model. It handles pointer of model.
+func (m *Mapper) FieldMap(model interface{}) map[string]reflect.Value {
+	if err := m.tryOpen(); err != nil {
+		m.logger.Warnf("cannot get field map of %+v: %v", model, err)
+		return map[string]reflect.Value{}
+	}
+	return m.Conn.Mapper.FieldMap(indirect(reflect.ValueOf(model)))
 }
 
 func (m *Mapper) Name() string {

@@ -11,6 +11,17 @@ import (
 // ErrInvalidType is an error returning where the model is invalid (currently, when it is a null pointer)
 var ErrInvalidType = errors.New("Invalid Model Type")
 
+// Reflect dissects provided model reference into a type and value for further inspection.
+// It accepts pointer, slice, and pointer of slices indirections.
+func Reflect(model interface{}) (reflect.Type, reflect.Value) {
+	value := indirect(reflect.ValueOf(model))
+	t := value.Type()
+	if t.Kind() == reflect.Slice {
+		t = t.Elem()
+	}
+	return t, value
+}
+
 func indirect(v reflect.Value) reflect.Value {
 	for {
 		switch v.Kind() {
@@ -93,6 +104,27 @@ func dialSubindex(v reflect.Value) reflect.Value {
 		}
 	}
 	return v
+}
+
+// mergeFields merges a struct's field's slice values into another one
+func mergeFields(dst, src reflect.Value) (reflect.Value, error) {
+	dst = reflect.Indirect(dst)
+	src = reflect.Indirect(src)
+	if dst.Kind() != reflect.Struct {
+		return dst, errors.New("dst is not a struct")
+	}
+	if src.Type() != dst.Type() {
+		return dst, errors.New("src is not of the same type")
+	}
+	for idx := 0; idx < dst.NumField(); idx++ {
+		dstField := dst.Field(idx)
+		srcField := src.Field(idx)
+		if dstField.Kind() == reflect.Slice && dstField.Type().Elem() == srcField.Type().Elem() {
+			dstField.Set(reflect.AppendSlice(dstField, srcField))
+		}
+	}
+
+	return dst, nil
 }
 
 // copied from stdlib's encoding/json/encode.go, added driver.Valuer handling

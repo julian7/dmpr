@@ -8,6 +8,34 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// OptRelatedTo is an internal struct tag option mapper inserts for all columns, which is a subfield of an embedded table. Its value is the name of the embedded table.
+	OptRelatedTo = "_related_to_"
+	// OptUnrelated is an internal struct tag option mapper inserts for all columns, which have parents, but they are not a subfield of a known relation.
+	OptUnrelated = "_unrelated_"
+	// OptBelongs is a struct tag option marking a "belongs-to" relation.
+	OptBelongs = "belongs"
+	// OptRelation is a struct tag option marking a "has-one", "has-many", or a "many-to-many" relation, containing the other end's ref stub for the struct's ID.
+	//
+	// Example tag: `db:"posts,relation=author"`: you can reference this join as `posts`, and the other end will have a field called `author_id` to reference this table.
+	OptRelation = "relation"
+	// OptReverse is a struct tag option marking a "many-to-many" relation,
+	// containing the stub how the other end is referenced in the linker table (see OptThrough).
+	// OptReverse is taken into consideration only if OptRelation and OptThrough
+	// are provided.
+	//
+	// Example tag: `db:"groups,relation=user,reverse=group,through=user_groups"`:
+	// you can reference this join as `groups`, and there must be a `user_groups`
+	// table with a `user_id` and a `group_id` field. `user_id` references to this
+	// table, `group_id` references to the joined table.
+	OptReverse = "reverse"
+	// OptThrough is a struct tag option marking a "many-to-many" relation,
+	// containing the linker table's name. See OptReverse for an example.
+	// OptThrough is taken into consideration only if OptRelation and OptReverse
+	// are also provided.
+	OptThrough = "through"
+)
+
 // FieldList stores fields of a reflectx.StructMap's Index (from sqlx), with the structure's type
 type FieldList struct {
 	Fields []FieldListItem
@@ -25,6 +53,22 @@ type FieldListItem struct {
 	Path      string
 	Traversed bool
 }
+
+type queryField struct {
+	key  string
+	val  string
+	eq   string
+	opts map[string]string
+}
+
+// Traversal stores dial information for each column into the resulting model instance
+type Traversal struct {
+	Name     string
+	Index    []int
+	Relation reflect.StructField
+}
+
+type Traversals []*Traversal
 
 // FieldList returns a map of types in the form of a StructMap, from the original model's type
 func (m *Mapper) FieldList(t reflect.Type) *FieldList {
@@ -171,52 +215,53 @@ func (fl *FieldList) HasNFieldsFor(relation, tableref string, field FieldListIte
 }
 
 // TraversalsByName provides a traversal index for SELECT query results, to map result rows' columns with model's entry positions
-func (fl *FieldList) TraversalsByName(columns []string) ([]*traversal, error) {
-	fields := make([]*traversal, len(columns))
+func (fl *FieldList) TraversalsByName(columns []string) (Traversals, error) {
+	fields := make([]*Traversal, len(columns))
 	for idx := range columns {
-		trav, err := fl.TraversalByName(columns[idx])
-		if err != nil {
-			return nil, err
+		trav := fl.traversalByName(columns[idx], "", nil)
+		if trav == nil {
+			return nil, errors.Errorf("can't find column %q in model struct", columns[idx])
 		}
 		fields[idx] = trav
 	}
 	return fields, nil
 }
 
-func (fl *FieldList) TraversalByName(column string) (*traversal, error) {
+func (fl *FieldList) traversalByName(column, prefix string, parentIndex []int) *Traversal {
 	subcol := strings.SplitN(column, "_", 2)
+	if len(parentIndex) < 1 {
+		parentIndex = []int{}
+	}
 	for idx, fi := range fl.Fields {
 		if fi.Traversed {
 			continue
 		}
 		if fi.Path == column {
 			fl.Fields[idx].Traversed = true
-			trav := &traversal{name: column, index: fi.Index}
+			parentIndex = append(parentIndex, fi.Index...)
+			trav := &Traversal{Name: prefix + column, Index: parentIndex}
 			if relation, ok := fi.Options[OptRelatedTo]; ok {
 				for _, item := range fl.Fields {
 					if item.Name == relation {
-						trav.relation = item.Field
+						trav.Relation = item.Field
 					}
 				}
 			}
-			return trav, nil
+			return trav
 		}
-		if fi.Path == subcol[0] {
+		if len(subcol) > 1 && fi.Path == subcol[0] {
 			otherfl, ok := fl.Joins[subcol[0]]
-			if len(subcol) > 1 && ok {
-				trav, err := otherfl.TraversalByName(subcol[1])
-				if err != nil {
-					continue
-				}
-				trav.name = column
-				oldidx := make([]int, len(fi.Index))
-				copy(oldidx, fi.Index)
-				trav.index = append(oldidx, trav.index...)
-				return trav, nil
+			if !ok {
+				continue
 			}
+			trav := otherfl.traversalByName(subcol[1], subcol[0]+"_", fi.Index)
+			if trav == nil {
+				continue
+			}
+			return trav
 		}
 	}
-	return nil, errors.Errorf("can't find column %q in model struct", column)
+	return nil
 }
 
 // QField returns a query field based on a FieldListItem
@@ -234,4 +279,24 @@ func (fi FieldListItem) QField() *queryField {
 	field.val = val
 	field.eq = fi.Path + "=" + val
 	return field
+}
+
+// Map creates new empty model struct instance, and fills values slice with
+// pointers to model elements by traversal indexes. This makes sqlx.Scan
+// load rows directly into model instances.
+func (t Traversals) Map(v reflect.Value, values []interface{}) error {
+	v = reflect.Indirect(v)
+	if v.Kind() != reflect.Struct {
+		return errors.New("argument not a struct")
+	}
+
+	for i, traversal := range t {
+		if len(traversal.Index) == 0 {
+			values[i] = new(interface{})
+			continue
+		}
+		f := fieldByIndexes(v, traversal.Index)
+		values[i] = f.Addr().Interface()
+	}
+	return nil
 }
