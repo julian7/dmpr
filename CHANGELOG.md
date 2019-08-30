@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+No changes so far.
+
+## [v0.2.0] - Aug 30, 2019
+
 ### Added
 
 * Many-to-many relationships
@@ -24,4 +28,5 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * dmpr data mapper as it naturally grew from an application
 
 [Unreleased]: https://github.com/julian7/dmpr
+[v0.2.0]: https://github.com/julian7/dmpr/releases/v0.2.0
 [v0.1.0]: https://github.com/julian7/dmpr/releases/v0.1.0
